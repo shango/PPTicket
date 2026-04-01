@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-// @ts-expect-error — @tailwindcss/vite has no type declarations
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 

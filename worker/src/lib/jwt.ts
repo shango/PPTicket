@@ -63,8 +63,8 @@ export async function verifyJWT(token: string, secret: string): Promise<JWTPaylo
 
   const payload: JWTPayload = JSON.parse(new TextDecoder().decode(base64urlDecode(parts[1])));
 
-  if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-    throw new Error('Token expired');
+  if (!payload.exp || payload.exp < Math.floor(Date.now() / 1000)) {
+    throw new Error('Token expired or missing expiry');
   }
 
   return payload;

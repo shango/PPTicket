@@ -29,6 +29,8 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const [newComment, setNewComment] = useState('');
   const [devUsers, setDevUsers] = useState<User[]>([]);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [form, setForm] = useState({
     title: ticket.title,
     description: ticket.description || '',
@@ -54,26 +56,35 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   }, [ticket.id, canEdit]);
 
   async function handleSave() {
-    const updates: any = {};
-    if (form.title !== ticket.title) updates.title = form.title;
-    if (form.description !== (ticket.description || '')) updates.description = form.description;
-    if (form.priority !== ticket.priority) updates.priority = form.priority;
-    if (form.assignee_id !== (ticket.assignee_id || '')) updates.assignee_id = form.assignee_id || null;
-    if (form.tags !== ticket.tags.join(', ')) updates.tags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+    setSaving(true);
+    setSaveError('');
 
-    const dueDateUnix = form.due_date ? Math.floor(new Date(form.due_date).getTime() / 1000) : null;
-    if (dueDateUnix !== ticket.due_date) updates.due_date = dueDateUnix;
+    try {
+      const updates: any = {};
+      if (form.title !== ticket.title) updates.title = form.title;
+      if (form.description !== (ticket.description || '')) updates.description = form.description;
+      if (form.priority !== ticket.priority) updates.priority = form.priority;
+      if (form.assignee_id !== (ticket.assignee_id || '')) updates.assignee_id = form.assignee_id || null;
+      if (form.tags !== ticket.tags.join(', ')) updates.tags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
 
-    if (form.status !== ticket.status) {
-      await api.moveTicket(ticket.id, form.status, ticket.sort_order);
+      const dueDateUnix = form.due_date ? Math.floor(new Date(form.due_date).getTime() / 1000) : null;
+      if (dueDateUnix !== ticket.due_date) updates.due_date = dueDateUnix;
+
+      if (form.status !== ticket.status) {
+        await api.moveTicket(ticket.id, form.status, ticket.sort_order);
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await api.updateTicket(ticket.id, updates);
+      }
+
+      setEditing(false);
+      onUpdate();
+    } catch (e: any) {
+      setSaveError(e.message || 'Failed to save changes.');
+    } finally {
+      setSaving(false);
     }
-
-    if (Object.keys(updates).length > 0) {
-      await api.updateTicket(ticket.id, updates);
-    }
-
-    setEditing(false);
-    onUpdate();
   }
 
   async function handleAddComment() {
@@ -234,19 +245,28 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
 
           {/* Save / Cancel */}
           {editing && (
-            <div className="flex gap-2 mb-6">
+            <div className="mb-6">
+              {saveError && (
+                <div className="bg-p0/10 border border-p0/30 rounded p-2 mb-2">
+                  <p className="text-p0 text-xs">{saveError}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
               <button
                 onClick={handleSave}
-                className="px-4 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent/90"
+                disabled={saving}
+                className="px-4 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent/90 disabled:opacity-50"
               >
-                Save
+                {saving ? 'Saving...' : 'Save'}
               </button>
               <button
-                onClick={() => setEditing(false)}
-                className="px-4 py-1.5 bg-bg-elevated text-text-muted rounded text-sm hover:text-text-primary"
+                onClick={() => { setEditing(false); setSaveError(''); }}
+                disabled={saving}
+                className="px-4 py-1.5 bg-bg-elevated text-text-muted rounded text-sm hover:text-text-primary disabled:opacity-50"
               >
                 Cancel
               </button>
+              </div>
             </div>
           )}
 

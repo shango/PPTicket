@@ -21,6 +21,7 @@ ticketRoutes.get('/', async (c) => {
   if (priority) { conditions.push('t.priority = ?'); params.push(priority); }
   if (assignee) { conditions.push('t.assignee_id = ?'); params.push(assignee); }
   if (submitter) { conditions.push('t.submitter_id = ?'); params.push(submitter); }
+  if (tag) { conditions.push('EXISTS (SELECT 1 FROM ticket_tags WHERE ticket_id = t.id AND tag = ?)'); params.push(tag); }
 
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
@@ -37,10 +38,7 @@ ticketRoutes.get('/', async (c) => {
     tags: t.tags ? t.tags.split(',') : [],
   }));
 
-  // If tag filter, do client-side filter (since tags are in a join table)
-  const filtered = tag ? tickets.filter((t: any) => t.tags.includes(tag)) : tickets;
-
-  return c.json({ data: filtered, error: null });
+  return c.json({ data: tickets, error: null });
 });
 
 // POST /api/v1/tickets
@@ -65,17 +63,15 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const now = Math.floor(Date.now() / 1000);
   const priority = body.priority || 'p2';
 
-  // Get next ticket number
-  const last = await c.env.DB.prepare('SELECT MAX(ticket_number) as max_num FROM tickets').first<{ max_num: number | null }>();
-  const ticketNumber = (last?.max_num || 0) + 1;
-
-  // Get max sort_order for backlog
-  const lastSort = await c.env.DB.prepare("SELECT MAX(sort_order) as max_sort FROM tickets WHERE status = 'backlog'").first<{ max_sort: number | null }>();
-  const sortOrder = (lastSort?.max_sort || 0) + 1;
-
+  // Atomic insert with computed ticket_number and sort_order to avoid race conditions
   await c.env.DB.prepare(
-    'INSERT INTO tickets (id, ticket_number, title, description, status, priority, assignee_id, submitter_id, due_date, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, ticketNumber, body.title, body.description, 'backlog', priority, null, user.id, body.due_date || null, sortOrder, now, now).run();
+    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, assignee_id, submitter_id, due_date, sort_order, created_at, updated_at)
+     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, 'backlog', ?, NULL, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = 'backlog'), 0) + 1, ?, ?
+     FROM tickets`
+  ).bind(id, body.title, body.description, priority, user.id, body.due_date || null, now, now).run();
+
+  const inserted = await c.env.DB.prepare('SELECT ticket_number FROM tickets WHERE id = ?').bind(id).first<{ ticket_number: number }>();
+  const ticketNumber = inserted!.ticket_number;
 
   // Insert tags
   if (body.tags && body.tags.length > 0) {
@@ -89,7 +85,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const recipients = await c.env.DB.prepare("SELECT email FROM users WHERE role IN ('admin', 'dev')").all<{ email: string }>();
   if (recipients.results.length > 0) {
     const email = newTicketEmail(ticketNumber, body.title, priority, user.name, c.env.FRONTEND_URL);
-    sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email });
+    c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email }));
   }
 
   const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
@@ -146,17 +142,28 @@ ticketRoutes.patch('/:id', async (c) => {
     tags: string[];
   }>>();
 
+  const isDM = user.role === 'decision_maker';
   const updates: string[] = [];
   const values: any[] = [];
   const now = Math.floor(Date.now() / 1000);
 
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
   if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
-  if (body.priority !== undefined) { updates.push('priority = ?'); values.push(body.priority); }
+
+  // Priority and assignee changes are restricted to dev/admin
+  if (body.priority !== undefined) {
+    if (isDM) {
+      return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change priority.' } }, 403);
+    }
+    updates.push('priority = ?'); values.push(body.priority);
+  }
   if (body.due_date !== undefined) { updates.push('due_date = ?'); values.push(body.due_date); }
 
-  // Handle assignee change with notification
+  // Handle assignee change with notification (dev/admin only)
   if (body.assignee_id !== undefined) {
+    if (isDM) {
+      return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can assign tickets.' } }, 403);
+    }
     updates.push('assignee_id = ?');
     values.push(body.assignee_id);
 
@@ -164,7 +171,7 @@ ticketRoutes.patch('/:id', async (c) => {
       const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(body.assignee_id).first<{ email: string }>();
       if (assignee) {
         const email = ticketAssignedEmail(ticket.ticket_number, ticket.title, ticket.priority, ticket.due_date, c.env.FRONTEND_URL);
-        sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.email], ...email });
+        c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.email], ...email }));
       }
     }
   }
@@ -214,7 +221,7 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
     const submitter = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(ticket.submitter_id).first<{ email: string }>();
     if (submitter) {
       const email = ticketStatusEmail(ticket.ticket_number, ticket.title, status, c.env.FRONTEND_URL);
-      sendEmail(c.env.EMAIL_API_KEY, { to: [submitter.email], ...email });
+      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [submitter.email], ...email }));
     }
   }
 
@@ -279,9 +286,16 @@ ticketRoutes.post('/:id/attachments/upload-url', requireRole('decision_maker', '
 
 // PUT upload proxy for R2
 ticketRoutes.put('/:id/attachments/upload', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
+  const { id: ticketId } = c.req.param();
   const key = c.req.query('key');
   if (!key) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Missing key parameter.' } }, 400);
+  }
+
+  // Validate key belongs to this ticket to prevent path traversal / object hijacking
+  const expectedPrefix = `tickets/${ticketId}/`;
+  if (!key.startsWith(expectedPrefix) || key.includes('..')) {
+    return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Invalid upload key.' } }, 403);
   }
 
   const body = await c.req.arrayBuffer();
@@ -299,6 +313,18 @@ ticketRoutes.post('/:id/attachments', requireRole('decision_maker', 'dev', 'admi
   const { filename, url, mime_type, size_bytes } = await c.req.json<{
     filename: string; url: string; mime_type?: string; size_bytes?: number;
   }>();
+
+  // Validate URL is a legitimate R2 key belonging to this ticket
+  const expectedPrefix = `tickets/${ticketId}/`;
+  if (!url.startsWith(expectedPrefix) || url.includes('..')) {
+    return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Invalid attachment URL.' } }, 403);
+  }
+
+  // Verify the object actually exists in R2
+  const head = await c.env.ATTACHMENTS.head(url);
+  if (!head) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Attachment file not found in storage.' } }, 404);
+  }
 
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);

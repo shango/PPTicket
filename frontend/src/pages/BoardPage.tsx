@@ -82,8 +82,12 @@ export function BoardPage() {
     const overColumn = COLUMNS.find((col) => col === over.id) ||
       tickets.find((t) => t.id === over.id)?.status;
 
+    // Only move between columns; sort_order is computed in handleDragEnd
     if (overColumn && overColumn !== activeTicket.status) {
-      optimisticMoveTicket(activeTicket.id, overColumn, activeTicket.sort_order);
+      // Place at end of target column temporarily
+      const colItems = tickets.filter((t) => t.status === overColumn).sort((a, b) => a.sort_order - b.sort_order);
+      const tempSort = colItems.length > 0 ? colItems[colItems.length - 1].sort_order + 1 : 1;
+      optimisticMoveTicket(activeTicket.id, overColumn, tempSort);
     }
   }
 

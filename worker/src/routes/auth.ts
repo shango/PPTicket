@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { setCookie, deleteCookie } from 'hono/cookie';
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { Env, User } from '../types';
 import { signJWT } from '../lib/jwt';
 import { sendEmail, newUserEmail } from '../lib/email';
@@ -7,6 +7,15 @@ import { sendEmail, newUserEmail } from '../lib/email';
 export const authRoutes = new Hono<{ Bindings: Env }>();
 
 authRoutes.get('/google', (c) => {
+  const state = crypto.randomUUID();
+  setCookie(c, 'oauth_state', state, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 300,
+  });
+
   const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
   const params = new URLSearchParams({
     client_id: c.env.GOOGLE_CLIENT_ID,
@@ -15,6 +24,7 @@ authRoutes.get('/google', (c) => {
     scope: 'openid email profile',
     access_type: 'online',
     prompt: 'select_account',
+    state,
   });
   return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 });
@@ -23,6 +33,14 @@ authRoutes.get('/google/callback', async (c) => {
   const code = c.req.query('code');
   if (!code) {
     return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=no_code`);
+  }
+
+  // Verify OAuth state to prevent CSRF
+  const cookieState = getCookie(c, 'oauth_state');
+  const queryState = c.req.query('state');
+  deleteCookie(c, 'oauth_state', { path: '/' });
+  if (!cookieState || cookieState !== queryState) {
+    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=state_mismatch`);
   }
 
   const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
@@ -80,7 +98,7 @@ authRoutes.get('/google/callback', async (c) => {
     const recipients = await c.env.DB.prepare("SELECT email FROM users WHERE role IN ('admin', 'dev')").all<{ email: string }>();
     if (recipients.results.length > 0) {
       const email = newUserEmail(googleUser.name, googleUser.email, c.env.FRONTEND_URL);
-      sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email });
+      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email }));
     }
   } else {
     // Update last login

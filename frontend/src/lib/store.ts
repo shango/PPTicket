@@ -5,6 +5,7 @@ interface AppState {
   user: User | null;
   tickets: TicketWithMeta[];
   loading: boolean;
+  initialized: boolean;
   error: string | null;
 
   fetchUser: () => Promise<void>;
@@ -20,14 +21,15 @@ export const useStore = create<AppState>((set, get) => ({
   user: null,
   tickets: [],
   loading: false,
+  initialized: false,
   error: null,
 
   fetchUser: async () => {
     try {
       const user = await api.getMe();
-      set({ user });
+      set({ user, initialized: true });
     } catch {
-      set({ user: null });
+      set({ user: null, initialized: true });
     }
   },
 

@@ -10,7 +10,15 @@ import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const user = useStore((s) => s.user);
+  const initialized = useStore((s) => s.initialized);
 
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-text-muted">Loading...</p>
+      </div>
+    );
+  }
   if (!user) return <Navigate to="/login" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
