@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, type User, type TicketWithMeta } from './api';
+import { api, clearToken, type User, type TicketWithMeta } from './api';
 
 interface AppState {
   user: User | null;
@@ -53,7 +53,7 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   logout: async () => {
-    await api.logout();
+    clearToken();
     set({ user: null });
     window.location.href = '/login';
   },

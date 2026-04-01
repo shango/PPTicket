@@ -6,6 +6,7 @@ import { AuthErrorPage } from './pages/AuthErrorPage';
 import { BoardPage } from './pages/BoardPage';
 import { SubmitPage } from './pages/SubmitPage';
 import { AdminPage } from './pages/AdminPage';
+import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
@@ -33,9 +34,15 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
+function CatchAll() {
+  const user = useStore((s) => s.user);
+  const initialized = useStore((s) => s.initialized);
+  if (!initialized) return null;
+  return <Navigate to={user ? '/board' : '/login'} replace />;
+}
+
 export default function App() {
   const fetchUser = useStore((s) => s.fetchUser);
-  const user = useStore((s) => s.user);
 
   useEffect(() => {
     fetchUser();
@@ -46,6 +53,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/error" element={<AuthErrorPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route element={<Layout />}>
           <Route
             path="/board"
@@ -72,7 +80,7 @@ export default function App() {
             }
           />
         </Route>
-        <Route path="*" element={<Navigate to={user ? '/board' : '/login'} replace />} />
+        <Route path="*" element={<CatchAll />} />
       </Routes>
     </BrowserRouter>
   );

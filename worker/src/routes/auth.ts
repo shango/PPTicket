@@ -110,15 +110,7 @@ authRoutes.get('/google/callback', async (c) => {
   // Issue JWT
   const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
 
-  setCookie(c, 'session', token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Strict',
-    path: '/',
-    maxAge: 28800, // 8 hours
-  });
-
-  // Redirect based on role
+  // Redirect to frontend with token — frontend will store it and call /auth/session
   const landingPages: Record<string, string> = {
     viewer: '/board',
     decision_maker: '/submit',
@@ -126,7 +118,8 @@ authRoutes.get('/google/callback', async (c) => {
     admin: '/board',
   };
 
-  return c.redirect(`${c.env.FRONTEND_URL}${landingPages[user.role] || '/board'}`);
+  const landing = landingPages[user.role] || '/board';
+  return c.redirect(`${c.env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(landing)}`);
 });
 
 // TEMPORARY: Dev login bypass — remove before production
@@ -148,15 +141,7 @@ authRoutes.get('/dev-login', async (c) => {
 
   const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
 
-  setCookie(c, 'session', token, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Strict',
-    path: '/',
-    maxAge: 28800,
-  });
-
-  return c.redirect(`${c.env.FRONTEND_URL}/board`);
+  return c.redirect(`${c.env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent('/board')}`);
 });
 
 authRoutes.post('/logout', (c) => {
