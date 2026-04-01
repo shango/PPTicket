@@ -32,6 +32,12 @@ export function LoginPage() {
           </svg>
           Sign in with Google
         </a>
+        <a
+          href={`${API_BASE}/auth/dev-login`}
+          className="mt-4 inline-flex items-center gap-2 px-6 py-3 bg-bg-elevated text-text-muted rounded-lg font-medium text-sm hover:text-text-primary transition-colors"
+        >
+          Dev Login (bypass OAuth)
+        </a>
         <p className="mt-6 text-xs text-text-muted">
           Restricted to @pdoexperts.fb.com accounts
         </p>

@@ -129,6 +129,36 @@ authRoutes.get('/google/callback', async (c) => {
   return c.redirect(`${c.env.FRONTEND_URL}${landingPages[user.role] || '/board'}`);
 });
 
+// TEMPORARY: Dev login bypass — remove before production
+authRoutes.get('/dev-login', async (c) => {
+  const now = Math.floor(Date.now() / 1000);
+  const email = 'dev@pdoexperts.fb.com';
+
+  let user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<User>();
+
+  if (!user) {
+    const id = crypto.randomUUID();
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, name, avatar_url, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(id, email, 'Dev User', null, 'admin', now, now).run();
+    user = { id, email, name: 'Dev User', avatar_url: null, role: 'admin', created_at: now, last_login: now };
+  } else {
+    await c.env.DB.prepare('UPDATE users SET last_login = ? WHERE id = ?').bind(now, user.id).run();
+  }
+
+  const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
+
+  setCookie(c, 'session', token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    path: '/',
+    maxAge: 28800,
+  });
+
+  return c.redirect(`${c.env.FRONTEND_URL}/board`);
+});
+
 authRoutes.post('/logout', (c) => {
   deleteCookie(c, 'session', { path: '/' });
   return c.json({ data: { message: 'Logged out' }, error: null });
