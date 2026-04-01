@@ -1,3 +1,5 @@
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 export function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-base">
@@ -7,7 +9,7 @@ export function LoginPage() {
           <p className="text-text-muted">Internal ticketing system for PDO Experts</p>
         </div>
         <a
-          href="/auth/google"
+          href={`${API_BASE}/auth/google`}
           className="inline-flex items-center gap-3 px-6 py-3 bg-white text-zinc-900 rounded-lg font-medium text-sm hover:bg-zinc-100 transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
