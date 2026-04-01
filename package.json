@@ -1,0 +1,13 @@
+{
+  "name": "pdo-kanban",
+  "private": true,
+  "workspaces": ["frontend", "worker"],
+  "scripts": {
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:worker": "npm run dev --workspace=worker",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:worker": "npm run build --workspace=worker",
+    "deploy:worker": "npm run deploy --workspace=worker",
+    "db:migrate": "cd worker && npx wrangler d1 migrations apply pdo-kanban-db"
+  }
+}
