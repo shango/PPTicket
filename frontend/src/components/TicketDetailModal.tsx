@@ -320,7 +320,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                 <div key={comment.id} className="bg-bg-elevated rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] text-accent font-semibold">
-                      {comment.author_name?.[0]?.toUpperCase() || '?'}
+                      {comment.author_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
                     </div>
                     <span className="text-[12px] font-medium text-text-primary">{comment.author_name}</span>
                     <span className="text-[10px] text-text-muted">
