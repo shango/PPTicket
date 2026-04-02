@@ -204,7 +204,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                   }}
                   className={fieldInput} />
               ) : (
-                <span className={fieldValue}>{ticket.edc ? new Date(ticket.edc * 1000).toLocaleDateString() : '—'}</span>
+                <span className={fieldValue}>{ticket.edc ? new Date(ticket.edc * 1000).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</span>
               )}
             </div>
             <div>

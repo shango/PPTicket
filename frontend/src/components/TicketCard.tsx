@@ -90,9 +90,8 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
       <div className="flex items-center justify-between text-[11px] text-text-muted">
         <div>
           {ticket.edc && (
-            <span>
-              <span className="text-text-muted">EDC </span>
-              <span className={isPastEdc ? 'text-danger' : ''}>{new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+            <span className={isPastEdc ? 'text-danger' : ''}>
+              EDC {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
             </span>
           )}
         </div>
