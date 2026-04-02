@@ -55,10 +55,14 @@ export const api = {
   getUsers: () => request<User[]>('/api/v1/users'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (id: string, data: { first_name?: string; last_name?: string; email?: string; role?: string }) =>
+    request<User>(`/api/v1/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   updateRole: (id: string, role: string) =>
     request<User>(`/api/v1/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   suspendUser: (id: string) =>
     request(`/api/v1/users/${id}`, { method: 'DELETE' }),
+  deleteUser: (id: string) =>
+    request(`/api/v1/users/${id}?permanent=true`, { method: 'DELETE' }),
 
   // Tickets
   getTickets: (params?: Record<string, string>) => {

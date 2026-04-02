@@ -20,6 +20,9 @@ export function AdminPage() {
   const [createError, setCreateError] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [showNewUserPassword, setShowNewUserPassword] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', role: '' });
+  const [editError, setEditError] = useState('');
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
   const [projectError, setProjectError] = useState('');
@@ -39,6 +42,28 @@ export function AdminPage() {
   }
 
   useEffect(() => { fetchUsers(); fetchProjects(); fetchColumns(); }, []);
+
+  function openEditUser(u: User) {
+    setEditingUser(u);
+    setEditForm({ first_name: u.first_name || u.name.split(' ')[0] || '', last_name: u.last_name || u.name.split(' ').slice(1).join(' ') || '', email: u.email, role: u.role });
+    setEditError('');
+  }
+
+  async function handleSaveUser(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditError('');
+    try {
+      await api.updateUser(editingUser.id, editForm);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (e: any) { setEditError(e.message); }
+  }
+
+  async function handleDeleteUser(userId: string) {
+    if (!confirm('Permanently delete this user? This cannot be undone. Their ticket assignments will be cleared.')) return;
+    try { await api.deleteUser(userId); fetchUsers(); } catch (e: any) { alert(e.message); }
+  }
 
   async function handleRoleChange(userId: string, newRole: string) {
     if (!confirm(`Change this user's role to ${roleLabels[newRole]}?`)) return;
@@ -247,9 +272,15 @@ export function AdminPage() {
                     {new Date(u.created_at * 1000).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-2.5">
-                    {u.id !== currentUser?.id && (
-                      <button onClick={() => handleSuspend(u.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Suspend</button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openEditUser(u)} className="text-[11px] text-text-muted hover:text-text-primary font-medium">Edit</button>
+                      {u.id !== currentUser?.id && (
+                        <>
+                          <button onClick={() => handleSuspend(u.id)} className="text-[11px] text-p1/70 hover:text-p1 font-medium">Suspend</button>
+                          <button onClick={() => handleDeleteUser(u.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -441,6 +472,54 @@ export function AdminPage() {
           <strong>Initial</strong> = new tickets land here. <strong>Done</strong> = triggers completion notification to submitter.
         </p>
       </div>
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setEditingUser(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-bg-surface border border-border rounded-xl p-6 w-full max-w-md shadow-2xl shadow-black/40" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold">Edit User</h2>
+              <button onClick={() => setEditingUser(null)} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-bg-hover">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            {editError && (
+              <div className="bg-danger/8 border border-danger/20 rounded-lg p-2.5 mb-4">
+                <p className="text-danger text-xs">{editError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveUser} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">First Name</label>
+                  <input value={editForm.first_name} onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })} required className={fieldInput + ' w-full'} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Last Name</label>
+                  <input value={editForm.last_name} onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })} required className={fieldInput + ' w-full'} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Email</label>
+                <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required className={fieldInput + ' w-full'} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Role</label>
+                <select value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} className={fieldInput + ' w-full'}>
+                  {roleOptions.map((r) => <option key={r} value={r}>{roleLabels[r]}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover">Save</button>
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 bg-bg-elevated border border-border text-text-secondary rounded-lg text-sm hover:text-text-primary hover:bg-bg-hover">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

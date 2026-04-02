@@ -52,6 +52,50 @@ userRoutes.post('/', requireRole('admin'), async (c) => {
   return c.json({ data: user, error: null }, 201);
 });
 
+// PATCH /api/v1/users/:id (Admin only — edit user)
+userRoutes.patch('/:id', requireRole('admin'), async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string; role?: Role }>();
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (body.first_name !== undefined) { updates.push('first_name = ?'); values.push(body.first_name.trim()); }
+  if (body.last_name !== undefined) { updates.push('last_name = ?'); values.push(body.last_name.trim()); }
+  if (body.first_name !== undefined || body.last_name !== undefined) {
+    // Recompute name
+    const existing = await c.env.DB.prepare('SELECT first_name, last_name FROM users WHERE id = ?').bind(id).first<{ first_name: string; last_name: string }>();
+    const fn = body.first_name?.trim() || existing?.first_name || '';
+    const ln = body.last_name?.trim() || existing?.last_name || '';
+    updates.push('name = ?'); values.push(`${fn} ${ln}`.trim());
+  }
+  if (body.email !== undefined) {
+    const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(body.email.toLowerCase().trim(), id).first();
+    if (dup) return c.json({ data: null, error: { code: 'CONFLICT', message: 'Email already in use.' } }, 409);
+    updates.push('email = ?'); values.push(body.email.toLowerCase().trim());
+  }
+  if (body.role !== undefined) {
+    const validRoles: Role[] = ['viewer', 'decision_maker', 'dev', 'admin'];
+    if (!validRoles.includes(body.role)) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid role.' } }, 400);
+    // Guard last admin
+    if (body.role !== 'admin') {
+      const target = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(id).first<{ role: string }>();
+      if (target?.role === 'admin') {
+        const count = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
+        if (count && count.count <= 1) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot demote the last admin.' } }, 403);
+      }
+    }
+    updates.push('role = ?'); values.push(body.role);
+  }
+
+  if (updates.length === 0) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No fields to update.' } }, 400);
+
+  values.push(id);
+  await c.env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  const updated = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
+  return c.json({ data: updated, error: null });
+});
+
 // PATCH /api/v1/users/:id/role (Admin only)
 userRoutes.patch('/:id/role', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
@@ -94,6 +138,15 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
     if (adminCount && adminCount.count <= 1) {
       return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot suspend the last admin.' } }, 403);
     }
+  }
+
+  const permanent = c.req.query('permanent') === 'true';
+
+  if (permanent) {
+    // Unassign tickets and clear submitter references before deleting
+    await c.env.DB.prepare('UPDATE tickets SET assignee_id = NULL WHERE assignee_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+    return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }
 
   await c.env.DB.prepare("UPDATE users SET role = 'suspended' WHERE id = ?").bind(id).run();
