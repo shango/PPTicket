@@ -106,6 +106,15 @@ export function Layout() {
                 </span>
               </div>
               <div className="py-1">
+                <button
+                  onClick={() => { setShowDropdown(false); navigate('/stats'); }}
+                  className="w-full text-left px-3 py-1.5 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+                  </svg>
+                  Statistics
+                </button>
                 {isAdmin && (
                   <button
                     onClick={() => { setShowDropdown(false); navigate('/admin'); }}

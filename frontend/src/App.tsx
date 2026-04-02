@@ -6,6 +6,7 @@ import { SetupPage } from './pages/SetupPage';
 import { BoardPage } from './pages/BoardPage';
 import { SubmitPage } from './pages/SubmitPage';
 import { AdminPage } from './pages/AdminPage';
+import { StatsPage } from './pages/StatsPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
@@ -78,6 +79,14 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={['decision_maker', 'dev', 'admin']}>
                 <SubmitPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/stats"
+            element={
+              <ProtectedRoute>
+                <StatsPage />
               </ProtectedRoute>
             }
           />
