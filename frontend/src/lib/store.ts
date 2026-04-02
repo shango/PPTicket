@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, type User, type TicketWithMeta } from './api';
+import { api, clearToken, type User, type TicketWithMeta } from './api';
 
 interface AppState {
   user: User | null;
@@ -58,6 +58,7 @@ export const useStore = create<AppState>((set, get) => ({
   setMustChangePassword: (v) => set({ mustChangePassword: v }),
 
   logout: async () => {
+    clearToken();
     try { await api.logout(); } catch {}
     set({ user: null });
     window.location.href = '/login';

@@ -47,7 +47,7 @@ authRoutes.post('/login', async (c) => {
   const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
   setCookie(c, 'session', token, getCookieOptions(c));
 
-  return c.json({ data: { must_change_password: !!user.must_change_password, user: { id: user.id, email: user.email, name: user.name, role: user.role } }, error: null });
+  return c.json({ data: { token, must_change_password: !!user.must_change_password, user: { id: user.id, email: user.email, name: user.name, role: user.role } }, error: null });
 });
 
 // POST /auth/setup — Initial admin setup (atomic — only works when no users exist)
@@ -80,7 +80,7 @@ authRoutes.post('/setup', async (c) => {
   const token = await signJWT({ sub: id, email, role: 'admin' }, c.env.JWT_SECRET);
   setCookie(c, 'session', token, getCookieOptions(c));
 
-  return c.json({ data: { user: { id, email, name, role: 'admin' } }, error: null });
+  return c.json({ data: { token, user: { id, email, name, role: 'admin' } }, error: null });
 });
 
 // POST /auth/change-password (authenticated — with suspended check)

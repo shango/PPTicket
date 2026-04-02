@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, setToken } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function LoginPage() {
@@ -20,6 +20,7 @@ export function LoginPage() {
 
     try {
       const result = await api.login(email, password);
+      setToken(result.token);
       await fetchUser();
       if (result.must_change_password) {
         setMustChangePassword(true);

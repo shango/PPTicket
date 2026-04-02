@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, setToken } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function SetupPage() {
@@ -16,7 +16,8 @@ export function SetupPage() {
     setLoading(true);
 
     try {
-      await api.setup(form.email, form.password, form.name);
+      const result = await api.setup(form.email, form.password, form.name);
+      setToken(result.token);
       await fetchUser();
       navigate('/board', { replace: true });
     } catch (e: any) {

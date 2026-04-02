@@ -1,15 +1,33 @@
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
+// Cross-domain (production) uses Bearer tokens; same-origin (local dev) uses HttpOnly cookies
+const IS_CROSS_ORIGIN = !!BASE;
+
+export function getToken(): string | null {
+  return IS_CROSS_ORIGIN ? localStorage.getItem('session_token') : null;
+}
+
+export function setToken(token: string) {
+  if (IS_CROSS_ORIGIN) localStorage.setItem('session_token', token);
+}
+
+export function clearToken() {
+  localStorage.removeItem('session_token');
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, {
-    credentials: 'include',
+    credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
     headers: { ...headers, ...options?.headers },
     ...options,
   });
 
   if (res.status === 401) {
+    clearToken();
     throw new Error('Unauthorized');
   }
 
@@ -25,9 +43,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // Auth
   login: (email: string, password: string) =>
-    request<{ must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<{ token: string; must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   setup: (email: string, password: string, name: string) =>
-    request<{ user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
+    request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
   changePassword: (current_password: string, new_password: string) =>
     request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
