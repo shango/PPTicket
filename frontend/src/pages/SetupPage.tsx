@@ -4,7 +4,7 @@ import { api, setToken } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function SetupPage() {
-  const [form, setForm] = useState({ email: '', name: '', password: '' });
+  const [form, setForm] = useState({ email: '', first_name: '', last_name: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const fetchUser = useStore((s) => s.fetchUser);
@@ -16,7 +16,7 @@ export function SetupPage() {
     setLoading(true);
 
     try {
-      const result = await api.setup(form.email, form.password, form.name);
+      const result = await api.setup(form);
       setToken(result.token);
       await fetchUser();
       navigate('/board', { replace: true });
@@ -36,49 +36,59 @@ export function SetupPage() {
         </div>
 
         {error && (
-          <div className="bg-p0/10 border border-p0/30 rounded-lg p-3 mb-4">
-            <p className="text-p0 text-sm">{error}</p>
+          <div className="bg-danger/8 border border-danger/20 rounded-lg p-3 mb-4">
+            <p className="text-danger text-sm">{error}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-sm text-text-muted block mb-1">Name</label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-              className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm"
-              placeholder="Your full name"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-text-secondary block mb-1.5 font-medium">First Name</label>
+              <input
+                value={form.first_name}
+                onChange={(e) => setForm({ ...form, first_name: e.target.value })}
+                required
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-text-secondary block mb-1.5 font-medium">Last Name</label>
+              <input
+                value={form.last_name}
+                onChange={(e) => setForm({ ...form, last_name: e.target.value })}
+                required
+                className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2.5 text-sm"
+              />
+            </div>
           </div>
           <div>
-            <label className="text-sm text-text-muted block mb-1">Email</label>
+            <label className="text-xs text-text-secondary block mb-1.5 font-medium">Email</label>
             <input
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
-              className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm"
+              className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
               placeholder="you@pdoexperts.fb.com"
             />
           </div>
           <div>
-            <label className="text-sm text-text-muted block mb-1">Password</label>
+            <label className="text-xs text-text-secondary block mb-1.5 font-medium">Password</label>
             <input
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               required
               minLength={8}
-              className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm"
+              className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
               placeholder="Min 8 characters"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-2 bg-accent text-white rounded text-sm font-medium hover:bg-accent/90 disabled:opacity-50 transition-colors"
+            className="w-full px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-hover disabled:opacity-50 transition-colors"
           >
             {loading ? 'Creating account...' : 'Create Admin Account'}
           </button>

@@ -52,26 +52,27 @@ authRoutes.post('/login', async (c) => {
 
 // POST /auth/setup — Initial admin setup (atomic — only works when no users exist)
 authRoutes.post('/setup', async (c) => {
-  const { email, password, name } = await c.req.json<{ email: string; password: string; name: string }>();
+  const { email, password, first_name, last_name } = await c.req.json<{ email: string; password: string; first_name: string; last_name: string }>();
 
-  if (!email || !password || !name) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, password, and name are required.' } }, 400);
+  if (!email || !password || !first_name || !last_name) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, password, first name, and last name are required.' } }, 400);
   }
 
   if (password.length < 8) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
   }
 
+  const name = `${first_name.trim()} ${last_name.trim()}`;
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
   const passwordHash = await hashPassword(password);
 
   // Atomic insert — only succeeds if no users exist (prevents TOCTOU race)
   const result = await c.env.DB.prepare(
-    `INSERT INTO users (id, email, name, avatar_url, role, password_hash, created_at, last_login)
-     SELECT ?, ?, ?, NULL, 'admin', ?, ?, ?
+    `INSERT INTO users (id, email, name, first_name, last_name, avatar_url, role, password_hash, created_at, last_login)
+     SELECT ?, ?, ?, ?, ?, NULL, 'admin', ?, ?, ?
      WHERE NOT EXISTS (SELECT 1 FROM users)`
-  ).bind(id, email.toLowerCase().trim(), name, passwordHash, now, now).run();
+  ).bind(id, email.toLowerCase().trim(), name, first_name.trim(), last_name.trim(), passwordHash, now, now).run();
 
   if (!result.meta.changes || result.meta.changes === 0) {
     return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Setup already completed.' } }, 403);

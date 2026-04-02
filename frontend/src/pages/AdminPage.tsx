@@ -16,7 +16,7 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [newUser, setNewUser] = useState({ email: '', name: '', password: '', role: 'viewer' });
+  const [newUser, setNewUser] = useState({ email: '', first_name: '', last_name: '', password: '', role: 'viewer' });
   const [createError, setCreateError] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [showNewUserPassword, setShowNewUserPassword] = useState(false);
@@ -50,7 +50,7 @@ export function AdminPage() {
   }
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault(); setCreateError('');
-    try { await api.createUser(newUser); setNewUser({ email: '', name: '', password: '', role: 'viewer' }); setShowCreate(false); fetchUsers(); }
+    try { await api.createUser(newUser); setNewUser({ email: '', first_name: '', last_name: '', password: '', role: 'viewer' }); setShowCreate(false); fetchUsers(); }
     catch (e: any) { setCreateError(e.message); }
   }
   async function handleCreateProject(e: React.FormEvent) {
@@ -181,7 +181,8 @@ export function AdminPage() {
             </div>
             {createError && <p className="text-danger text-[12px]">{createError}</p>}
             <div className="grid grid-cols-2 gap-3">
-              <input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="Full name" required className={fieldInput} />
+              <input value={newUser.first_name} onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })} placeholder="First name" required className={fieldInput} />
+              <input value={newUser.last_name} onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })} placeholder="Last name" required className={fieldInput} />
               <input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="Email" required className={fieldInput} />
               <div className="relative">
                 <input type={showNewUserPassword ? 'text' : 'password'} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Temp password (min 8)" required minLength={8} className={`${fieldInput} w-full pr-9`} />

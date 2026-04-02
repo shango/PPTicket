@@ -103,7 +103,9 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
           )}
         </div>
         {ticket.assignee_name && (
-          <span className="text-[11px] text-accent">{ticket.assignee_name}</span>
+          <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
+            {ticket.assignee_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+          </span>
         )}
       </div>
     </div>

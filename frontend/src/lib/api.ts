@@ -44,8 +44,8 @@ export const api = {
   // Auth
   login: (email: string, password: string) =>
     request<{ token: string; must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  setup: (email: string, password: string, name: string) =>
-    request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
+  setup: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+    request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
   changePassword: (current_password: string, new_password: string) =>
     request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
@@ -53,7 +53,7 @@ export const api = {
   // Users
   getMe: () => request<User>('/api/v1/users/me'),
   getUsers: () => request<User[]>('/api/v1/users'),
-  createUser: (data: { email: string; name: string; password: string; role?: string }) =>
+  createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
   updateRole: (id: string, role: string) =>
     request<User>(`/api/v1/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
@@ -121,10 +121,17 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   role: 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
   created_at: number;
   last_login: number | null;
+}
+
+export function userInitials(user: { first_name?: string | null; last_name?: string | null; name?: string }): string {
+  if (user.first_name && user.last_name) return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+  return user.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
 export interface TicketWithMeta {

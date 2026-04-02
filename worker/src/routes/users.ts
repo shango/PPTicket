@@ -4,7 +4,7 @@ import { requireRole } from '../middleware/auth';
 import { hashPassword } from '../lib/password';
 import { sendEmail } from '../lib/email';
 
-const USER_FIELDS = 'id, email, name, avatar_url, role, created_at, last_login';
+const USER_FIELDS = 'id, email, name, first_name, last_name, avatar_url, role, created_at, last_login';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -22,10 +22,10 @@ userRoutes.get('/', requireRole('admin'), async (c) => {
 
 // POST /api/v1/users (Admin only — create user)
 userRoutes.post('/', requireRole('admin'), async (c) => {
-  const { email, name, password, role } = await c.req.json<{ email: string; name: string; password: string; role?: Role }>();
+  const { email, first_name, last_name, password, role } = await c.req.json<{ email: string; first_name: string; last_name: string; password: string; role?: Role }>();
 
-  if (!email || !name || !password) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, name, and password are required.' } }, 400);
+  if (!email || !first_name || !last_name || !password) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, first name, last name, and password are required.' } }, 400);
   }
   if (password.length < 8) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
@@ -43,9 +43,10 @@ userRoutes.post('/', requireRole('admin'), async (c) => {
   const now = Math.floor(Date.now() / 1000);
   const passwordHash = await hashPassword(password);
 
+  const name = `${first_name.trim()} ${last_name.trim()}`;
   await c.env.DB.prepare(
-    'INSERT INTO users (id, email, name, avatar_url, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
-  ).bind(id, email.toLowerCase().trim(), name, null, userRole, passwordHash, now).run();
+    'INSERT INTO users (id, email, name, first_name, last_name, avatar_url, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
+  ).bind(id, email.toLowerCase().trim(), name, first_name.trim(), last_name.trim(), null, userRole, passwordHash, now).run();
 
   const user = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
   return c.json({ data: user, error: null }, 201);

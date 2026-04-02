@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useStore } from '../lib/store';
-import { api } from '../lib/api';
+import { api, userInitials } from '../lib/api';
 
 export function Layout() {
   const user = useStore((s) => s.user);
@@ -29,7 +29,7 @@ export function Layout() {
 
   const canSubmit = ['decision_maker', 'dev', 'admin'].includes(user.role);
   const isAdmin = user.role === 'admin';
-  const initials = user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = userInitials(user);
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
