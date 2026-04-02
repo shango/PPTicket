@@ -6,6 +6,8 @@ import { userRoutes } from './routes/users';
 import { ticketRoutes } from './routes/tickets';
 import { commentRoutes } from './routes/comments';
 import { attachmentRoutes } from './routes/attachments';
+import { productRoutes } from './routes/products';
+import { columnRoutes } from './routes/columns';
 import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -15,7 +17,7 @@ app.use('*', async (c, next) => {
     origin: c.env.FRONTEND_URL,
     credentials: true,
     allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type'],
+    allowHeaders: ['Content-Type', 'Authorization'],
   });
   return corsMiddleware(c, next);
 });
@@ -30,6 +32,8 @@ api.route('/users', userRoutes);
 api.route('/tickets', ticketRoutes);
 api.route('/comments', commentRoutes);
 api.route('/attachments', attachmentRoutes);
+api.route('/products', productRoutes);
+api.route('/columns', columnRoutes);
 
 app.route('/api/v1', api);
 
