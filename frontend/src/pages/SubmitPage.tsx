@@ -8,7 +8,7 @@ export function SubmitPage() {
     title: '',
     description: '',
     priority: 'p2',
-    ticket_type: 'bug' as 'bug' | 'feature',
+    ticket_type: '' as '' | 'bug' | 'feature',
     product_id: '',
     submitter_id: '',
     tags: '',
@@ -44,6 +44,10 @@ export function SubmitPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!form.ticket_type) {
+      setError('Please select a ticket type.');
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -57,13 +61,13 @@ export function SubmitPage() {
         priority: form.priority,
         tags,
         product_version: form.product_version || null,
-        ticket_type: form.ticket_type,
+        ticket_type: form.ticket_type as 'bug' | 'feature',
         product_id: form.product_id || null,
         submitter_id: form.submitter_id || null,
       });
 
       setSuccess({ ticketNumber: ticket.ticket_number });
-      setForm({ title: '', description: '', priority: 'p2', ticket_type: 'bug', product_id: '', submitter_id: user?.id || '', tags: '', product_version: '' });
+      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', submitter_id: user?.id || '', tags: '', product_version: '' });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -100,18 +104,33 @@ export function SubmitPage() {
         <div className={`grid gap-4 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <div>
             <label className={fieldLabel}>Type <span className="text-danger">*</span></label>
-            <div className="flex gap-4 mt-1">
-              <label className="flex items-center gap-1.5 cursor-pointer text-[13px]">
-                <input type="radio" name="ticket_type" checked={form.ticket_type === 'bug'}
-                  onChange={() => setForm({ ...form, ticket_type: 'bug' })} className="accent-[#d4564e]" />
-                <span className={form.ticket_type === 'bug' ? 'text-text-primary' : 'text-text-muted'}>Bug</span>
-              </label>
-              <label className="flex items-center gap-1.5 cursor-pointer text-[13px]">
-                <input type="radio" name="ticket_type" checked={form.ticket_type === 'feature'}
-                  onChange={() => setForm({ ...form, ticket_type: 'feature' })} className="accent-[#5bae7a]" />
-                <span className={form.ticket_type === 'feature' ? 'text-text-primary' : 'text-text-muted'}>Feature</span>
-              </label>
+            <div className="flex gap-2 mt-1">
+              <button type="button" onClick={() => setForm({ ...form, ticket_type: 'bug' })}
+                className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
+                  form.ticket_type === 'bug'
+                    ? 'bg-danger/10 border-danger/40 text-danger'
+                    : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
+                }`}>
+                <svg className="inline mr-1.5 -mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Bug
+              </button>
+              <button type="button" onClick={() => setForm({ ...form, ticket_type: 'feature' })}
+                className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
+                  form.ticket_type === 'feature'
+                    ? 'bg-success/10 border-success/40 text-success'
+                    : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
+                }`}>
+                <svg className="inline mr-1.5 -mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                </svg>
+                Feature
+              </button>
             </div>
+            {!form.ticket_type && error && (
+              <p className="text-danger text-[11px] mt-1">Please select a ticket type</p>
+            )}
           </div>
           <div>
             <label className={fieldLabel}>Project <span className="text-danger">*</span></label>
