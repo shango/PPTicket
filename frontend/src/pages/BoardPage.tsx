@@ -239,7 +239,7 @@ export function BoardPage() {
             onClick={() => { setSearch(''); setPriorityFilter([]); setProductFilter(''); setMyTickets(false); }}
             className="text-[12px] text-text-muted hover:text-text-secondary ml-1"
           >
-            Clear
+            All Tickets
           </button>
         )}
       </div>

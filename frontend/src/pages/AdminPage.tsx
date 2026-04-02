@@ -84,6 +84,41 @@ export function AdminPage() {
     try { await api.updateColumn(id, { [flag]: value }); fetchColumns(); } catch (e: any) { alert(e.message); }
   }
 
+  async function handleExportCSV() {
+    try {
+      const tickets = await api.getTickets();
+      const headers = ['Ticket #', 'Title', 'Description', 'Status', 'Priority', 'Type', 'Project', 'Product Version', 'Assignee', 'Submitted By', 'EDC', 'Tags', 'Created', 'Updated'];
+      const rows = tickets.map(t => [
+        `PDO-${t.ticket_number}`,
+        t.title,
+        t.description || '',
+        t.status,
+        t.priority.toUpperCase(),
+        t.ticket_type,
+        t.product_name || '',
+        t.product_version || '',
+        t.assignee_id || '',
+        t.submitter_name || '',
+        t.edc ? new Date(t.edc * 1000).toLocaleDateString() : '',
+        (t.tags || []).join('; '),
+        new Date(t.created_at * 1000).toLocaleString(),
+        new Date(t.updated_at * 1000).toLocaleString(),
+      ]);
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pdo-tickets-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert('Export failed: ' + e.message);
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-64"><p className="text-text-muted text-[13px]">Loading...</p></div>;
 
   const activeUsers = users.filter((u) => u.role !== 'suspended');
@@ -93,9 +128,18 @@ export function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
-      <div className="mb-8">
-        <h1 className="text-xl font-bold text-text-primary tracking-tight">Admin</h1>
-        <p className="text-[13px] text-text-muted mt-1">Manage users and projects</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-xl font-bold text-text-primary tracking-tight">Admin</h1>
+          <p className="text-[13px] text-text-muted mt-1">Manage users and projects</p>
+        </div>
+        <button onClick={handleExportCSV}
+          className="text-[12px] px-3 py-1.5 bg-bg-elevated border border-border text-text-secondary rounded-lg font-medium hover:text-text-primary hover:bg-bg-hover flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-text-muted">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export CSV
+        </button>
       </div>
 
       {error && (
