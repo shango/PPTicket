@@ -182,7 +182,7 @@ export function StatsPage() {
         <div className="bg-bg-surface border border-border-subtle rounded-lg p-5 mb-6">
           <h2 className="text-[13px] font-semibold text-text-primary mb-4">Dev Team</h2>
           <div className="space-y-3">
-            {devStats.map(({ user, total, done, open, bugsDone, featuresDone }) => (
+            {devStats.map(({ user, done, open, bugsDone, featuresDone }) => (
               <div key={user.id} className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-full bg-accent/15 flex items-center justify-center text-[10px] text-accent font-semibold shrink-0">
                   {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
