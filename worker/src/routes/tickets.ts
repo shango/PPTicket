@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { Env, Ticket, TicketStatus, TicketType, Priority } from '../types';
 import { requireRole } from '../middleware/auth';
 import { sendEmail, newTicketEmail, ticketAssignedEmail, ticketStatusEmail, newCommentEmail } from '../lib/email';
+import { sendPushToUser, sendPushToUsers } from '../lib/push';
 
 export const ticketRoutes = new Hono<{ Bindings: Env }>();
 
@@ -136,6 +137,17 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [...toEmails], ...email }));
   }
 
+  // Push notification for new ticket to admins + default owner
+  const pushRecipientIds: string[] = [];
+  const admins = await c.env.DB.prepare("SELECT id FROM users WHERE role = 'admin' AND id != ?").bind(user.id).all<{ id: string }>();
+  pushRecipientIds.push(...admins.results.map(a => a.id));
+  if (assigneeId && assigneeId !== user.id) pushRecipientIds.push(assigneeId);
+  if (pushRecipientIds.length > 0) {
+    c.executionCtx.waitUntil(sendPushToUsers(c.env.DB, pushRecipientIds, {
+      type: 'new_ticket', ticketNumber, title: body.title, body: `New ${body.ticket_type || 'bug'} ticket from ${user.name}`,
+    }, c.env.VAPID_PUBLIC_KEY, c.env.VAPID_PRIVATE_KEY));
+  }
+
   const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
   const assignees = await c.env.DB.prepare(
     'SELECT ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
@@ -268,6 +280,14 @@ ticketRoutes.patch('/:id', async (c) => {
       }
     }
 
+    // Push notification to newly assigned users
+    if (newAssignees.length > 0) {
+      c.executionCtx.waitUntil(sendPushToUsers(c.env.DB, newAssignees, {
+        type: 'assigned', ticketNumber: ticket.ticket_number, title: ticket.title,
+        body: `You've been assigned to PDO-${ticket.ticket_number}: ${ticket.title}`,
+      }, c.env.VAPID_PUBLIC_KEY, c.env.VAPID_PRIVATE_KEY));
+    }
+
     // Mark updated_at even if no other field changes
     if (updates.length === 0) {
       updates.push('updated_at = ?');
@@ -326,6 +346,11 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
       const email = ticketStatusEmail(ticket.ticket_number, ticket.title, status, c.env.FRONTEND_URL);
       c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [submitter.email], ...email }));
     }
+    const statusLabel = status === 'in_review' ? 'in review' : status;
+    c.executionCtx.waitUntil(sendPushToUser(c.env.DB, ticket.submitter_id, {
+      type: 'status', ticketNumber: ticket.ticket_number, title: ticket.title,
+      body: `PDO-${ticket.ticket_number} is now ${statusLabel}`,
+    }, c.env.VAPID_PUBLIC_KEY, c.env.VAPID_PRIVATE_KEY));
   }
 
   const updated = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
@@ -335,9 +360,21 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
 // GET /api/v1/tickets/:id/comments
 ticketRoutes.get('/:id/comments', async (c) => {
   const { id } = c.req.param();
+  const user = c.get('user');
   const result = await c.env.DB.prepare(
     'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.ticket_id = ? ORDER BY c.created_at ASC'
   ).bind(id).all();
+
+  // Track that user has seen this ticket's comments (for first-only push suppression)
+  if (user) {
+    const now = Math.floor(Date.now() / 1000);
+    c.executionCtx.waitUntil(
+      c.env.DB.prepare(
+        'INSERT INTO ticket_last_seen (user_id, ticket_id, seen_at) VALUES (?, ?, ?) ON CONFLICT(user_id, ticket_id) DO UPDATE SET seen_at = ?'
+      ).bind(user.id, id, now, now).run()
+    );
+  }
+
   return c.json({ data: result.results, error: null });
 });
 
@@ -395,6 +432,49 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   if (toEmails.size > 0) {
     const email = newCommentEmail(ticket.ticket_number, ticket.title, user.name, body, c.env.FRONTEND_URL);
     c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [...toEmails], ...email }));
+  }
+
+  // Push notifications with first-only logic: only push if user hasn't seen since last comment
+  const pushRecipientUserIds = new Set<string>();
+  for (const a of ticketAssignees.results) {
+    if (a.user_id !== user.id) pushRecipientUserIds.add(a.user_id);
+  }
+  if (ticket.product_id) {
+    const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(ticket.product_id).first<{ default_owner_id: string | null }>();
+    if (project?.default_owner_id && project.default_owner_id !== user.id) pushRecipientUserIds.add(project.default_owner_id);
+  }
+  if (mentionMatches) {
+    for (const name of mentionMatches.map(m => m.slice(1).trim()).filter(Boolean)) {
+      const mentioned = await c.env.DB.prepare("SELECT id FROM users WHERE name = ? AND role != 'suspended'").bind(name).first<{ id: string }>();
+      if (mentioned && mentioned.id !== user.id) pushRecipientUserIds.add(mentioned.id);
+    }
+  }
+
+  // Get the previous comment timestamp (before this one) to check first-only
+  const prevComment = await c.env.DB.prepare(
+    'SELECT MAX(created_at) as last_at FROM comments WHERE ticket_id = ? AND id != ?'
+  ).bind(ticketId, id).first<{ last_at: number | null }>();
+  const lastCommentAt = prevComment?.last_at || 0;
+
+  const pushTargets: string[] = [];
+  for (const uid of pushRecipientUserIds) {
+    const seen = await c.env.DB.prepare(
+      'SELECT seen_at FROM ticket_last_seen WHERE user_id = ? AND ticket_id = ?'
+    ).bind(uid, ticketId).first<{ seen_at: number }>();
+    // Push if: never seen, or last seen before the previous comment (meaning they have unread)
+    if (!seen || seen.seen_at < lastCommentAt) {
+      // Already has unread — suppress (first-only)
+    } else {
+      // They've seen everything up to now — this is the first unread, push it
+      pushTargets.push(uid);
+    }
+  }
+
+  if (pushTargets.length > 0) {
+    c.executionCtx.waitUntil(sendPushToUsers(c.env.DB, pushTargets, {
+      type: 'comment', ticketNumber: ticket.ticket_number, title: ticket.title,
+      body: `${user.name} commented on PDO-${ticket.ticket_number}`,
+    }, c.env.VAPID_PUBLIC_KEY, c.env.VAPID_PRIVATE_KEY));
   }
 
   const comment = await c.env.DB.prepare(

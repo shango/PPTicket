@@ -109,6 +109,13 @@ export const api = {
   deleteProject: (id: string) =>
     request(`/api/v1/projects/${id}`, { method: 'DELETE' }),
 
+  // Push notifications
+  getVapidKey: () => request<{ key: string }>('/api/v1/push/vapid-key'),
+  pushSubscribe: (data: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    request<{ id: string }>('/api/v1/push/subscribe', { method: 'POST', body: JSON.stringify(data) }),
+  pushUnsubscribe: (endpoint: string) =>
+    request<{ message: string }>('/api/v1/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+
   // Columns
   getColumns: () => request<Column[]>('/api/v1/columns'),
   createColumn: (data: { name: string; color?: string }) =>

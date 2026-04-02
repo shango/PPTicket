@@ -9,6 +9,8 @@ export interface Env {
   JWT_SECRET: string;
   EMAIL_API_KEY: string;
   FRONTEND_URL: string;
+  VAPID_PUBLIC_KEY: string;
+  VAPID_PRIVATE_KEY: string;
 }
 
 export interface User {

@@ -120,7 +120,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
     if (canEdit) {
       api.getUsers().catch(() => []).then((users) => {
         if (Array.isArray(users)) {
-          setDevUsers(users.filter((u) => ['dev', 'admin'].includes(u.role)));
+          setDevUsers(users.filter((u) => ['decision_maker', 'dev', 'admin'].includes(u.role)));
         }
       });
     }

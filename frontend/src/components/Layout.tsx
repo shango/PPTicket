@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useStore } from '../lib/store';
 import { api, userInitials } from '../lib/api';
+import { registerPush, unregisterPush, isPushEnabled } from '../lib/push';
 
 export function Layout() {
   const user = useStore((s) => s.user);
@@ -12,6 +13,8 @@ export function Layout() {
   const [pwError, setPwError] = useState('');
   const [pwSuccess, setPwSuccess] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -23,6 +26,10 @@ export function Layout() {
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    isPushEnabled().then(setPushEnabled);
   }, []);
 
   if (!user) return null;
@@ -106,6 +113,28 @@ export function Layout() {
                 </span>
               </div>
               <div className="py-1">
+                <button
+                  onClick={async () => {
+                    setPushLoading(true);
+                    try {
+                      if (pushEnabled) {
+                        await unregisterPush();
+                        setPushEnabled(false);
+                      } else {
+                        const ok = await registerPush();
+                        setPushEnabled(ok);
+                      }
+                    } catch { /* ignore */ }
+                    setPushLoading(false);
+                  }}
+                  disabled={pushLoading}
+                  className="w-full text-left px-3 py-1.5 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={pushEnabled ? 'text-accent' : 'text-text-muted'}>
+                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                  </svg>
+                  {pushLoading ? 'Loading...' : pushEnabled ? 'Notifications On' : 'Notifications Off'}
+                </button>
                 <button
                   onClick={() => { setShowDropdown(false); navigate('/stats'); }}
                   className="w-full text-left px-3 py-1.5 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-2"

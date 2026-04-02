@@ -8,6 +8,7 @@ import { commentRoutes } from './routes/comments';
 import { attachmentRoutes } from './routes/attachments';
 import { projectRoutes } from './routes/projects';
 import { columnRoutes } from './routes/columns';
+import { pushRoutes } from './routes/push';
 import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -34,6 +35,7 @@ api.route('/comments', commentRoutes);
 api.route('/attachments', attachmentRoutes);
 api.route('/projects', projectRoutes);
 api.route('/columns', columnRoutes);
+api.route('/push', pushRoutes);
 
 app.route('/api/v1', api);
 
