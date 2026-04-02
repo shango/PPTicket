@@ -168,10 +168,10 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const fieldValue = "text-[13px] text-text-secondary";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-start" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-xl bg-bg-surface border-l border-border h-full overflow-y-auto shadow-2xl shadow-black/40"
+        className="relative w-full max-w-xl bg-bg-surface border-r border-border h-full overflow-y-auto shadow-2xl shadow-black/40"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
