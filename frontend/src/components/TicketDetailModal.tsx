@@ -17,6 +17,7 @@ interface Props {
 
 export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const user = useStore((s) => s.user);
+  const fetchTickets = useStore((s) => s.fetchTickets);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [devUsers, setDevUsers] = useState<User[]>([]);
@@ -195,6 +196,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                       const edcUnix = val ? Math.floor(new Date(val).getTime() / 1000) : null;
                       try {
                         await api.updateTicket(ticket.id, { edc: edcUnix });
+                        fetchTickets();
                       } catch (e: any) {
                         setSaveError('EDC save failed: ' + e.message);
                       }
