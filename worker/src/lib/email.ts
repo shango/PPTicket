@@ -58,8 +58,8 @@ export function newUserEmail(name: string, email: string, frontendUrl: string): 
   };
 }
 
-export function ticketAssignedEmail(ticketNumber: number, title: string, priority: string, dueDate: number | null, frontendUrl: string): { subject: string; html: string } {
-  const dueDateStr = dueDate ? new Date(dueDate * 1000).toLocaleDateString() : 'None';
+export function ticketAssignedEmail(ticketNumber: number, title: string, priority: string, edc: number | null, frontendUrl: string): { subject: string; html: string } {
+  const edcStr = edc ? new Date(edc * 1000).toLocaleDateString() : 'None';
   return {
     subject: `You've been assigned PDO-${ticketNumber}`,
     html: `
@@ -67,7 +67,7 @@ export function ticketAssignedEmail(ticketNumber: number, title: string, priorit
         <h2 style="color: #6366f1;">Ticket Assigned to You</h2>
         <p><strong>PDO-${ticketNumber}:</strong> ${esc(title)}</p>
         <p><strong>Priority:</strong> ${esc(priority.toUpperCase())}</p>
-        <p><strong>Due:</strong> ${esc(dueDateStr)}</p>
+        <p><strong>Est. Completion:</strong> ${esc(edcStr)}</p>
         <p><a href="${frontendUrl}/board?ticket=PDO-${ticketNumber}" style="color: #6366f1;">View Ticket</a></p>
       </div>
     `,
