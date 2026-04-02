@@ -229,6 +229,27 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                   <option value="bug">Bug</option>
                   <option value="feature">Feature Request</option>
                 </select>
+              ) : canEdit ? (
+                <button
+                  className={`text-[13px] font-medium px-2 py-0.5 rounded cursor-pointer hover:opacity-80 ${
+                    ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+                  }`}
+                  title={`Click to switch to ${ticket.ticket_type === 'feature' ? 'Bug' : 'Feature'}`}
+                  onClick={async () => {
+                    const newType = ticket.ticket_type === 'feature' ? 'bug' : 'feature';
+                    try {
+                      await api.updateTicket(ticket.id, { ticket_type: newType });
+                      onUpdate();
+                    } catch (e: any) {
+                      setSaveError('Type change failed: ' + e.message);
+                    }
+                  }}
+                >
+                  {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
+                  <svg className="inline ml-1 opacity-50" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                  </svg>
+                </button>
               ) : (
                 <span className={`${fieldValue} ${ticket.ticket_type === 'feature' ? 'text-success' : 'text-danger'}`}>
                   {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
