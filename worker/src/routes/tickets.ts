@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { Env, Ticket, TicketStatus, TicketType, Priority } from '../types';
 import { requireRole } from '../middleware/auth';
-import { sendEmail, newTicketEmail, ticketAssignedEmail, ticketStatusEmail } from '../lib/email';
+import { sendEmail, newTicketEmail, ticketAssignedEmail, ticketStatusEmail, newCommentEmail } from '../lib/email';
 
 export const ticketRoutes = new Hono<{ Bindings: Env }>();
 
@@ -284,7 +284,7 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Comment body is required.' } }, 400);
   }
 
-  const ticket = await c.env.DB.prepare('SELECT id FROM tickets WHERE id = ?').bind(ticketId).first();
+  const ticket = await c.env.DB.prepare('SELECT id, ticket_number, title, assignee_id, product_id FROM tickets WHERE id = ?').bind(ticketId).first<{ id: string; ticket_number: number; title: string; assignee_id: string | null; product_id: string | null }>();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
@@ -294,6 +294,24 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   await c.env.DB.prepare(
     'INSERT INTO comments (id, ticket_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, ticketId, user.id, body, now).run();
+
+  // Notify assignee + project default owner (excluding the comment author)
+  const toEmails = new Set<string>();
+  if (ticket.assignee_id && ticket.assignee_id !== user.id) {
+    const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(ticket.assignee_id).first<{ email: string }>();
+    if (assignee) toEmails.add(assignee.email);
+  }
+  if (ticket.product_id) {
+    const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(ticket.product_id).first<{ default_owner_id: string | null }>();
+    if (project?.default_owner_id && project.default_owner_id !== user.id) {
+      const owner = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(project.default_owner_id).first<{ email: string }>();
+      if (owner) toEmails.add(owner.email);
+    }
+  }
+  if (toEmails.size > 0) {
+    const email = newCommentEmail(ticket.ticket_number, ticket.title, user.name, body, c.env.FRONTEND_URL);
+    c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [...toEmails], ...email }));
+  }
 
   const comment = await c.env.DB.prepare(
     'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?'

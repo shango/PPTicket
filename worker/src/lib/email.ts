@@ -88,3 +88,18 @@ export function ticketStatusEmail(ticketNumber: number, title: string, newStatus
     `,
   };
 }
+
+export function newCommentEmail(ticketNumber: number, title: string, authorName: string, commentBody: string, frontendUrl: string): { subject: string; html: string } {
+  return {
+    subject: `[PDO-${ticketNumber}] New comment on: ${title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6366f1;">New Comment</h2>
+        <p><strong>PDO-${ticketNumber}:</strong> ${esc(title)}</p>
+        <p><strong>${esc(authorName)}</strong> commented:</p>
+        <blockquote style="border-left: 3px solid #7c7fdf; margin: 12px 0; padding: 8px 12px; color: #a0a3af;">${esc(commentBody)}</blockquote>
+        <p><a href="${frontendUrl}/board?ticket=PDO-${ticketNumber}" style="color: #6366f1;">View Ticket</a></p>
+      </div>
+    `,
+  };
+}

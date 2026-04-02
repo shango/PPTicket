@@ -193,7 +193,11 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                     setForm({ ...form, edc: val });
                     if (!editing) {
                       const edcUnix = val ? Math.floor(new Date(val).getTime() / 1000) : null;
-                      try { await api.updateTicket(ticket.id, { edc: edcUnix } as any); } catch {}
+                      try {
+                        await api.updateTicket(ticket.id, { edc: edcUnix });
+                      } catch (e: any) {
+                        setSaveError('EDC save failed: ' + e.message);
+                      }
                     }
                   }}
                   className={fieldInput} />
