@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api, type TicketWithMeta, type Product, type User } from '../lib/api';
+import { api, type TicketWithMeta, type Project, type User } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function SubmitPage() {
@@ -18,13 +18,13 @@ export function SubmitPage() {
   const [success, setSuccess] = useState<{ ticketNumber: number } | null>(null);
   const [error, setError] = useState('');
   const [myTickets, setMyTickets] = useState<TicketWithMeta[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
-    api.getProducts().then(setProducts).catch(() => {});
+    api.getProjects().then(setProjects).catch(() => {});
     if (isAdmin) {
       api.getUsers().then((users) => {
         if (Array.isArray(users)) setAllUsers(users.filter(u => u.role !== 'suspended'));
@@ -109,11 +109,11 @@ export function SubmitPage() {
             </div>
           </div>
           <div>
-            <label className={fieldLabel}>Product <span className="text-danger">*</span></label>
+            <label className={fieldLabel}>Project <span className="text-danger">*</span></label>
             <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
               required className={fieldInput}>
-              <option value="">Select product...</option>
-              {products.map((p) => (
+              <option value="">Select project...</option>
+              {projects.map((p) => (
                 <option key={p.id} value={p.id}>{p.name} ({p.abbreviation})</option>
               ))}
             </select>
@@ -157,7 +157,7 @@ export function SubmitPage() {
             </select>
           </div>
           <div>
-            <label className={fieldLabel}>Product Version</label>
+            <label className={fieldLabel}>Version</label>
             <input value={form.product_version} onChange={(e) => setForm({ ...form, product_version: e.target.value })}
               className={fieldInput} placeholder="e.g. 2.4.1" />
           </div>

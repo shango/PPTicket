@@ -6,7 +6,7 @@ import { userRoutes } from './routes/users';
 import { ticketRoutes } from './routes/tickets';
 import { commentRoutes } from './routes/comments';
 import { attachmentRoutes } from './routes/attachments';
-import { productRoutes } from './routes/products';
+import { projectRoutes } from './routes/projects';
 import { columnRoutes } from './routes/columns';
 import { authMiddleware } from './middleware/auth';
 
@@ -32,7 +32,7 @@ api.route('/users', userRoutes);
 api.route('/tickets', ticketRoutes);
 api.route('/comments', commentRoutes);
 api.route('/attachments', attachmentRoutes);
-api.route('/products', productRoutes);
+api.route('/projects', projectRoutes);
 api.route('/columns', columnRoutes);
 
 app.route('/api/v1', api);

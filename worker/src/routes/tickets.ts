@@ -75,12 +75,19 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const initialCol = await c.env.DB.prepare('SELECT slug FROM columns WHERE is_initial = 1 LIMIT 1').first<{ slug: string }>();
   const initialStatus = initialCol?.slug || 'backlog';
 
+  // Auto-assign to project's default owner if a project is selected
+  let assigneeId: string | null = null;
+  if (body.product_id) {
+    const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(body.product_id).first<{ default_owner_id: string | null }>();
+    if (project?.default_owner_id) assigneeId = project.default_owner_id;
+  }
+
   // Atomic insert with computed ticket_number and sort_order to avoid race conditions
   await c.env.DB.prepare(
     `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, assignee_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
-     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
+     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
      FROM tickets`
-  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
+  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, assigneeId, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
 
   const inserted = await c.env.DB.prepare('SELECT ticket_number FROM tickets WHERE id = ?').bind(id).first<{ ticket_number: number }>();
   const ticketNumber = inserted!.ticket_number;

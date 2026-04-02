@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type TicketWithMeta, type Comment, type User, type Product, type Column } from '../lib/api';
+import { api, type TicketWithMeta, type Comment, type User, type Project, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
 
 const priorityOptions = [
@@ -20,7 +20,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [devUsers, setDevUsers] = useState<User[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [statusColumns, setStatusColumns] = useState<Column[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -43,7 +43,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
 
   useEffect(() => {
     api.getComments(ticket.id).then(setComments);
-    api.getProducts().then(setProducts).catch(() => {});
+    api.getProjects().then(setProjects).catch(() => {});
     api.getColumns().then(setStatusColumns).catch(() => {});
     if (canEdit) {
       api.getUsers().catch(() => []).then((users) => {
@@ -190,11 +190,11 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
               )}
             </div>
             <div>
-              <label className={fieldLabel}>Product</label>
+              <label className={fieldLabel}>Project</label>
               {editing ? (
                 <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })} className={fieldInput}>
                   <option value="">None</option>
-                  {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               ) : (
                 <span className={fieldValue}>

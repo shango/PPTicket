@@ -70,11 +70,12 @@ export interface Column {
   created_at: number;
 }
 
-export interface Product {
+export interface Project {
   id: string;
   name: string;
   abbreviation: string;
   color: string;
+  default_owner_id: string | null;
   created_at: number;
 }
 

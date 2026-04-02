@@ -95,14 +95,14 @@ export const api = {
   deleteAttachment: (id: string) =>
     request(`/api/v1/attachments/${id}`, { method: 'DELETE' }),
 
-  // Products
-  getProducts: () => request<Product[]>('/api/v1/products'),
-  createProduct: (data: { name: string; abbreviation: string; color?: string }) =>
-    request<Product>('/api/v1/products', { method: 'POST', body: JSON.stringify(data) }),
-  updateProduct: (id: string, data: { name?: string; abbreviation?: string; color?: string }) =>
-    request<Product>(`/api/v1/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  deleteProduct: (id: string) =>
-    request(`/api/v1/products/${id}`, { method: 'DELETE' }),
+  // Projects
+  getProjects: () => request<Project[]>('/api/v1/projects'),
+  createProject: (data: { name: string; abbreviation: string; color?: string; default_owner_id?: string }) =>
+    request<Project>('/api/v1/projects', { method: 'POST', body: JSON.stringify(data) }),
+  updateProject: (id: string, data: { name?: string; abbreviation?: string; color?: string; default_owner_id?: string | null }) =>
+    request<Project>(`/api/v1/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProject: (id: string) =>
+    request(`/api/v1/projects/${id}`, { method: 'DELETE' }),
 
   // Columns
   getColumns: () => request<Column[]>('/api/v1/columns'),
@@ -213,10 +213,12 @@ export interface Column {
   created_at: number;
 }
 
-export interface Product {
+export interface Project {
   id: string;
   name: string;
   abbreviation: string;
   color: string;
+  default_owner_id: string | null;
+  default_owner_name: string | null;
   created_at: number;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type User, type Product, type Column } from '../lib/api';
+import { api, type User, type Project, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
 
 const roleOptions = ['viewer', 'decision_maker', 'dev', 'admin'] as const;
@@ -18,10 +18,10 @@ export function AdminPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [newUser, setNewUser] = useState({ email: '', name: '', password: '', role: 'viewer' });
   const [createError, setCreateError] = useState('');
-  const [products, setProducts] = useState<Product[]>([]);
-  const [showCreateProduct, setShowCreateProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({ name: '', abbreviation: '', color: '#7c7fdf' });
-  const [productError, setProductError] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  const [newProject, setNewProject] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
+  const [projectError, setProjectError] = useState('');
   const [columns, setColumns] = useState<Column[]>([]);
   const [showCreateColumn, setShowCreateColumn] = useState(false);
   const [newColumn, setNewColumn] = useState({ name: '', color: '#5f6270' });
@@ -30,14 +30,14 @@ export function AdminPage() {
   async function fetchUsers() {
     try { setUsers(await api.getUsers()); } catch (e: any) { setError(e.message); } finally { setLoading(false); }
   }
-  async function fetchProducts() {
-    try { setProducts(await api.getProducts()); } catch {}
+  async function fetchProjects() {
+    try { setProjects(await api.getProjects()); } catch {}
   }
   async function fetchColumns() {
     try { setColumns(await api.getColumns()); } catch {}
   }
 
-  useEffect(() => { fetchUsers(); fetchProducts(); fetchColumns(); }, []);
+  useEffect(() => { fetchUsers(); fetchProjects(); fetchColumns(); }, []);
 
   async function handleRoleChange(userId: string, newRole: string) {
     if (!confirm(`Change this user's role to ${roleLabels[newRole]}?`)) return;
@@ -52,14 +52,14 @@ export function AdminPage() {
     try { await api.createUser(newUser); setNewUser({ email: '', name: '', password: '', role: 'viewer' }); setShowCreate(false); fetchUsers(); }
     catch (e: any) { setCreateError(e.message); }
   }
-  async function handleCreateProduct(e: React.FormEvent) {
-    e.preventDefault(); setProductError('');
-    try { await api.createProduct(newProduct); setNewProduct({ name: '', abbreviation: '', color: '#7c7fdf' }); setShowCreateProduct(false); fetchProducts(); }
-    catch (e: any) { setProductError(e.message); }
+  async function handleCreateProject(e: React.FormEvent) {
+    e.preventDefault(); setProjectError('');
+    try { await api.createProject({ ...newProject, default_owner_id: newProject.default_owner_id || undefined }); setNewProject({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' }); setShowCreateProject(false); fetchProjects(); }
+    catch (e: any) { setProjectError(e.message); }
   }
-  async function handleDeleteProduct(id: string) {
+  async function handleDeleteProject(id: string) {
     if (!confirm('Delete this product?')) return;
-    try { await api.deleteProduct(id); fetchProducts(); } catch (e: any) { alert(e.message); }
+    try { await api.deleteProject(id); fetchProjects(); } catch (e: any) { alert(e.message); }
   }
 
   async function handleCreateColumn(e: React.FormEvent) {
@@ -95,7 +95,7 @@ export function AdminPage() {
     <div className="max-w-5xl mx-auto px-6 py-8">
       <div className="mb-8">
         <h1 className="text-xl font-bold text-text-primary tracking-tight">Admin</h1>
-        <p className="text-[13px] text-text-muted mt-1">Manage users and products</p>
+        <p className="text-[13px] text-text-muted mt-1">Manage users and projects</p>
       </div>
 
       {error && (
@@ -213,31 +213,37 @@ export function AdminPage() {
         )}
       </div>
 
-      {/* Products section */}
+      {/* Projects section */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-text-primary">Products</h2>
-          {!showCreateProduct && (
-            <button onClick={() => setShowCreateProduct(true)}
+          <h2 className="text-base font-semibold text-text-primary">Projects</h2>
+          {!showCreateProject && (
+            <button onClick={() => setShowCreateProject(true)}
               className="text-[12px] px-3 py-1.5 bg-accent text-white rounded-lg font-medium hover:bg-accent-hover">
-              Add Product
+              Add Project
             </button>
           )}
         </div>
 
-        {showCreateProduct && (
-          <form onSubmit={handleCreateProduct} className="bg-bg-surface border border-border rounded-lg p-4 space-y-3 mb-4">
+        {showCreateProject && (
+          <form onSubmit={handleCreateProject} className="bg-bg-surface border border-border rounded-lg p-4 space-y-3 mb-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-[13px] font-semibold">New Product</h3>
-              <button type="button" onClick={() => setShowCreateProduct(false)} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-bg-hover">
+              <h3 className="text-[13px] font-semibold">New Project</h3>
+              <button type="button" onClick={() => setShowCreateProject(false)} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-bg-hover">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
-            {productError && <p className="text-danger text-[12px]">{productError}</p>}
-            <div className="grid grid-cols-[1fr_1fr_60px] gap-3">
-              <input value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} placeholder="Product name" required className={fieldInput} />
-              <input value={newProduct.abbreviation} onChange={(e) => setNewProduct({ ...newProduct, abbreviation: e.target.value })} placeholder="Abbrev (e.g. GEN)" required maxLength={5} className={fieldInput} />
-              <input type="color" value={newProduct.color} onChange={(e) => setNewProduct({ ...newProduct, color: e.target.value })} className="h-10 w-full bg-bg-elevated border border-border rounded-lg cursor-pointer" />
+            {projectError && <p className="text-danger text-[12px]">{projectError}</p>}
+            <div className="grid grid-cols-[1fr_1fr_1fr_60px] gap-3">
+              <input value={newProject.name} onChange={(e) => setNewProject({ ...newProject, name: e.target.value })} placeholder="Project name" required className={fieldInput} />
+              <input value={newProject.abbreviation} onChange={(e) => setNewProject({ ...newProject, abbreviation: e.target.value })} placeholder="Abbrev (e.g. GEN)" required maxLength={5} className={fieldInput} />
+              <select value={newProject.default_owner_id} onChange={(e) => setNewProject({ ...newProject, default_owner_id: e.target.value })} className={fieldInput}>
+                <option value="">No default owner</option>
+                {activeUsers.filter(u => ['dev', 'admin'].includes(u.role)).map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <input type="color" value={newProject.color} onChange={(e) => setNewProject({ ...newProject, color: e.target.value })} className="h-10 w-full bg-bg-elevated border border-border rounded-lg cursor-pointer" />
             </div>
             <button type="submit" className="text-[12px] px-4 py-1.5 bg-accent text-white rounded-lg font-medium hover:bg-accent-hover">Create</button>
           </form>
@@ -250,20 +256,35 @@ export function AdminPage() {
                 <th className="px-4 py-2.5 font-medium text-[11px] uppercase tracking-wider w-12"></th>
                 <th className="px-4 py-2.5 font-medium text-[11px] uppercase tracking-wider">Name</th>
                 <th className="px-4 py-2.5 font-medium text-[11px] uppercase tracking-wider">Code</th>
+                <th className="px-4 py-2.5 font-medium text-[11px] uppercase tracking-wider">Default Owner</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => (
+              {projects.map((p) => (
                 <tr key={p.id} className="border-t border-border-subtle hover:bg-bg-elevated/40 transition-colors">
                   <td className="px-4 py-2.5"><div className="w-3 h-3 rounded-sm" style={{ backgroundColor: p.color }} /></td>
                   <td className="px-4 py-2.5 text-text-primary font-medium">{p.name}</td>
                   <td className="px-4 py-2.5 text-text-muted font-mono text-[12px]">{p.abbreviation}</td>
-                  <td className="px-4 py-2.5"><button onClick={() => handleDeleteProduct(p.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button></td>
+                  <td className="px-4 py-2.5">
+                    <select
+                      value={p.default_owner_id || ''}
+                      onChange={async (e) => {
+                        try { await api.updateProject(p.id, { default_owner_id: e.target.value || null }); fetchProjects(); } catch (err: any) { alert(err.message); }
+                      }}
+                      className="bg-bg-elevated border border-border rounded-md px-2 py-1 text-[12px]"
+                    >
+                      <option value="">None</option>
+                      {activeUsers.filter(u => ['dev', 'admin'].includes(u.role)).map(u => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2.5"><button onClick={() => handleDeleteProject(p.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button></td>
                 </tr>
               ))}
-              {products.length === 0 && (
-                <tr><td colSpan={4} className="px-4 py-6 text-center text-text-muted text-[13px]">No products yet.</td></tr>
+              {projects.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-6 text-center text-text-muted text-[13px]">No projects yet.</td></tr>
               )}
             </tbody>
           </table>

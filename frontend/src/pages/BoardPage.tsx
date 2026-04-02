@@ -11,7 +11,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useStore } from '../lib/store';
-import { api, type TicketWithMeta, type Product, type Column } from '../lib/api';
+import { api, type TicketWithMeta, type Project, type Column } from '../lib/api';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { TicketCard } from '../components/TicketCard';
 import { TicketDetailModal } from '../components/TicketDetailModal';
@@ -27,8 +27,8 @@ export function BoardPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
-  const [productFilter, setProductFilter] = useState<string>('');
-  const [products, setProducts] = useState<Product[]>([]);
+  const [projectFilter, setProductFilter] = useState<string>('');
+  const [projects, setProjects] = useState<Project[]>([]);
   const [myTickets, setMyTickets] = useState(false);
 
   const canDrag = user ? ['dev', 'admin'].includes(user.role) : false;
@@ -41,7 +41,7 @@ export function BoardPage() {
   useEffect(() => {
     fetchTickets();
     api.getColumns().then(setColumns).catch(() => {});
-    api.getProducts().then(setProducts).catch(() => {});
+    api.getProjects().then(setProjects).catch(() => {});
   }, [fetchTickets]);
 
   const filteredTickets = useMemo(() => {
@@ -55,14 +55,14 @@ export function BoardPage() {
     if (priorityFilter.length > 0) {
       result = result.filter((t) => priorityFilter.includes(t.priority));
     }
-    if (productFilter) {
-      result = result.filter((t) => t.product_id === productFilter);
+    if (projectFilter) {
+      result = result.filter((t) => t.product_id === projectFilter);
     }
     if (myTickets && user) {
       result = result.filter((t) => t.assignee_id === user.id);
     }
     return result;
-  }, [tickets, search, priorityFilter, productFilter, myTickets, user]);
+  }, [tickets, search, priorityFilter, projectFilter, myTickets, user]);
 
   const columnTickets = useMemo(() => {
     const map: Record<string, TicketWithMeta[]> = {};
@@ -152,7 +152,7 @@ export function BoardPage() {
   }
 
   const activeTicket = activeId ? tickets.find((t) => t.id === activeId) : null;
-  const hasFilters = search || priorityFilter.length > 0 || productFilter || myTickets;
+  const hasFilters = search || priorityFilter.length > 0 || projectFilter || myTickets;
 
   const priorityBtnColors: Record<string, { active: string; dot: string }> = {
     p0: { active: 'bg-p0/15 text-p0 ring-p0/30', dot: 'bg-p0' },
@@ -211,12 +211,12 @@ export function BoardPage() {
 
         {/* Product filter */}
         <select
-          value={productFilter}
+          value={projectFilter}
           onChange={(e) => setProductFilter(e.target.value)}
           className="bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-secondary"
         >
-          <option value="">All Products</option>
-          {products.map((p) => (
+          <option value="">All Projects</option>
+          {projects.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
