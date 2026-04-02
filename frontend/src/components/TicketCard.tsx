@@ -102,10 +102,8 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
             </span>
           )}
         </div>
-        {ticket.assignee_id && (
-          <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] text-accent font-semibold">
-            A
-          </div>
+        {ticket.assignee_name && (
+          <span className="text-[11px] text-accent">{ticket.assignee_name}</span>
         )}
       </div>
     </div>

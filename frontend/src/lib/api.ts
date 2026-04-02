@@ -144,6 +144,7 @@ export interface TicketWithMeta {
   product_abbreviation: string | null;
   product_color: string | null;
   submitter_name: string | null;
+  assignee_name: string | null;
   sort_order: number;
   created_at: number;
   updated_at: number;

@@ -14,7 +14,7 @@ ticketRoutes.get('/', async (c) => {
   const submitter = c.req.query('submitter');
   const product = c.req.query('product');
 
-  let query = 'SELECT t.*, GROUP_CONCAT(tt.tag) as tags, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id';
+  let query = 'SELECT t.*, GROUP_CONCAT(tt.tag) as tags, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name, a.name as assignee_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN users a ON t.assignee_id = a.id';
   const conditions: string[] = [];
   const params: string[] = [];
 
@@ -115,7 +115,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 ticketRoutes.get('/:id', async (c) => {
   const { id } = c.req.param();
   const ticket = await c.env.DB.prepare(
-    'SELECT t.*, u.name as submitter_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
+    'SELECT t.*, u.name as submitter_name, a.name as assignee_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN users a ON t.assignee_id = a.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
   ).bind(id).first();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);

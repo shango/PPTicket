@@ -115,6 +115,11 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-2.5">
               <span className="text-[13px] font-mono text-text-muted font-medium">PDO-{ticket.ticket_number}</span>
+              <span className={`text-[11px] px-1.5 py-0.5 rounded font-medium ${
+                ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+              }`}>
+                {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
+              </span>
               {ticket.product_name && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded font-medium"
                   style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}>
@@ -176,7 +181,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                   {devUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               ) : (
-                <span className={fieldValue}>{ticket.assignee_id ? 'Assigned' : 'Unassigned'}</span>
+                <span className={fieldValue}>{ticket.assignee_name || 'Unassigned'}</span>
               )}
             </div>
             <div>
