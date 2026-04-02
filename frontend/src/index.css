@@ -1,28 +1,75 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --color-bg-base: #09090b;
-  --color-bg-surface: #18181b;
-  --color-bg-elevated: #27272a;
-  --color-text-primary: #fafafa;
-  --color-text-muted: #71717a;
-  --color-accent: #6366f1;
-  --color-p0: #ef4444;
-  --color-p1: #f97316;
-  --color-p2: #6366f1;
-  --color-p3: #71717a;
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Warm slate dark palette */
+  --color-bg-base: #0c0d10;
+  --color-bg-surface: #151619;
+  --color-bg-elevated: #1e1f24;
+  --color-bg-hover: #262830;
+  --color-border: #2a2c35;
+  --color-border-subtle: #21232a;
+
+  /* Text */
+  --color-text-primary: #e8e9ed;
+  --color-text-secondary: #a0a3af;
+  --color-text-muted: #5f6270;
+
+  /* Desaturated accent — muted indigo */
+  --color-accent: #7c7fdf;
+  --color-accent-hover: #8e90e8;
+  --color-accent-muted: rgba(124, 127, 223, 0.12);
+
+  /* Priority — desaturated */
+  --color-p0: #d4564e;
+  --color-p1: #d4944e;
+  --color-p2: #7c7fdf;
+  --color-p3: #5f6270;
+
+  /* Semantic */
+  --color-success: #5bae7a;
+  --color-danger: #d4564e;
 }
 
 body {
   background-color: var(--color-bg-base);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13.5px;
+  line-height: 1.5;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: #2a2c35 transparent;
+}
+
+::selection {
+  background: rgba(124, 127, 223, 0.3);
+}
+
+input, select, textarea {
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* Focus ring */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 1px rgba(124, 127, 223, 0.25);
+}
+
+/* Smooth transitions on interactive elements */
+button, a, select {
+  transition: all 0.15s ease;
 }
