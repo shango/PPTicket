@@ -186,9 +186,16 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
             </div>
             <div>
               <label className={fieldLabel}>Est. Completion</label>
-              {editing ? (
+              {canEdit ? (
                 <input type="date" value={form.edc}
-                  onChange={(e) => setForm({ ...form, edc: e.target.value })}
+                  onChange={async (e) => {
+                    const val = e.target.value;
+                    setForm({ ...form, edc: val });
+                    if (!editing) {
+                      const edcUnix = val ? Math.floor(new Date(val).getTime() / 1000) : null;
+                      try { await api.updateTicket(ticket.id, { edc: edcUnix } as any); } catch {}
+                    }
+                  }}
                   className={fieldInput} />
               ) : (
                 <span className={fieldValue}>{ticket.edc ? new Date(ticket.edc * 1000).toLocaleDateString() : '—'}</span>
