@@ -1,15 +1,13 @@
 export type Role = 'viewer' | 'decision_maker' | 'dev' | 'admin';
 export type TicketStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
 export type Priority = 'p0' | 'p1' | 'p2' | 'p3';
+export type TicketType = 'bug' | 'feature';
 
 export interface Env {
   DB: D1Database;
   ATTACHMENTS: R2Bucket;
-  GOOGLE_CLIENT_ID: string;
-  GOOGLE_CLIENT_SECRET: string;
   JWT_SECRET: string;
   EMAIL_API_KEY: string;
-  ALLOWED_DOMAIN: string;
   FRONTEND_URL: string;
 }
 
@@ -32,7 +30,10 @@ export interface Ticket {
   priority: Priority;
   assignee_id: string | null;
   submitter_id: string;
-  due_date: number | null;
+  edc: number | null;
+  product_version: string | null;
+  ticket_type: TicketType;
+  product_id: string | null;
   sort_order: number;
   created_at: number;
   updated_at: number;
@@ -55,6 +56,25 @@ export interface Attachment {
   url: string;
   mime_type: string | null;
   size_bytes: number | null;
+  created_at: number;
+}
+
+export interface Column {
+  id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+  color: string;
+  is_initial: number;
+  is_terminal: number;
+  created_at: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  abbreviation: string;
+  color: string;
   created_at: number;
 }
 

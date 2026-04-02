@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { Env, Ticket, TicketStatus, Priority } from '../types';
+import { Env, Ticket, TicketStatus, TicketType, Priority } from '../types';
 import { requireRole } from '../middleware/auth';
 import { sendEmail, newTicketEmail, ticketAssignedEmail, ticketStatusEmail } from '../lib/email';
 
@@ -12,8 +12,9 @@ ticketRoutes.get('/', async (c) => {
   const assignee = c.req.query('assignee');
   const tag = c.req.query('tag');
   const submitter = c.req.query('submitter');
+  const product = c.req.query('product');
 
-  let query = 'SELECT t.*, GROUP_CONCAT(tt.tag) as tags FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id';
+  let query = 'SELECT t.*, GROUP_CONCAT(tt.tag) as tags, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id';
   const conditions: string[] = [];
   const params: string[] = [];
 
@@ -22,6 +23,7 @@ ticketRoutes.get('/', async (c) => {
   if (assignee) { conditions.push('t.assignee_id = ?'); params.push(assignee); }
   if (submitter) { conditions.push('t.submitter_id = ?'); params.push(submitter); }
   if (tag) { conditions.push('EXISTS (SELECT 1 FROM ticket_tags WHERE ticket_id = t.id AND tag = ?)'); params.push(tag); }
+  if (product) { conditions.push('t.product_id = ?'); params.push(product); }
 
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
@@ -49,7 +51,11 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     description: string;
     priority?: Priority;
     tags?: string[];
-    due_date?: number | null;
+    edc?: number | null;
+    product_version?: string | null;
+    ticket_type?: TicketType;
+    product_id?: string | null;
+    submitter_id?: string | null;
   }>();
 
   if (!body.title || body.title.length > 200) {
@@ -62,13 +68,19 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
   const priority = body.priority || 'p2';
+  // Only admins can set a different submitter
+  const submitterId = (body.submitter_id && user.role === 'admin') ? body.submitter_id : user.id;
+
+  // Get the initial column
+  const initialCol = await c.env.DB.prepare('SELECT slug FROM columns WHERE is_initial = 1 LIMIT 1').first<{ slug: string }>();
+  const initialStatus = initialCol?.slug || 'backlog';
 
   // Atomic insert with computed ticket_number and sort_order to avoid race conditions
   await c.env.DB.prepare(
-    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, assignee_id, submitter_id, due_date, sort_order, created_at, updated_at)
-     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, 'backlog', ?, NULL, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = 'backlog'), 0) + 1, ?, ?
+    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, assignee_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
+     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
      FROM tickets`
-  ).bind(id, body.title, body.description, priority, user.id, body.due_date || null, now, now).run();
+  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
 
   const inserted = await c.env.DB.prepare('SELECT ticket_number FROM tickets WHERE id = ?').bind(id).first<{ ticket_number: number }>();
   const ticketNumber = inserted!.ticket_number;
@@ -95,7 +107,9 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 // GET /api/v1/tickets/:id
 ticketRoutes.get('/:id', async (c) => {
   const { id } = c.req.param();
-  const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
+  const ticket = await c.env.DB.prepare(
+    'SELECT t.*, u.name as submitter_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
+  ).bind(id).first();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
@@ -138,7 +152,10 @@ ticketRoutes.patch('/:id', async (c) => {
     description: string;
     priority: Priority;
     assignee_id: string | null;
-    due_date: number | null;
+    edc: number | null;
+    product_version: string | null;
+    ticket_type: TicketType;
+    product_id: string | null;
     tags: string[];
   }>>();
 
@@ -149,6 +166,9 @@ ticketRoutes.patch('/:id', async (c) => {
 
   if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
   if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
+  if (body.product_version !== undefined) { updates.push('product_version = ?'); values.push(body.product_version); }
+  if (body.ticket_type !== undefined) { updates.push('ticket_type = ?'); values.push(body.ticket_type); }
+  if (body.product_id !== undefined) { updates.push('product_id = ?'); values.push(body.product_id); }
 
   // Priority and assignee changes are restricted to dev/admin
   if (body.priority !== undefined) {
@@ -157,7 +177,7 @@ ticketRoutes.patch('/:id', async (c) => {
     }
     updates.push('priority = ?'); values.push(body.priority);
   }
-  if (body.due_date !== undefined) { updates.push('due_date = ?'); values.push(body.due_date); }
+  if (body.edc !== undefined) { updates.push('edc = ?'); values.push(body.edc); }
 
   // Handle assignee change with notification (dev/admin only)
   if (body.assignee_id !== undefined) {
@@ -170,7 +190,7 @@ ticketRoutes.patch('/:id', async (c) => {
     if (body.assignee_id && body.assignee_id !== ticket.assignee_id) {
       const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(body.assignee_id).first<{ email: string }>();
       if (assignee) {
-        const email = ticketAssignedEmail(ticket.ticket_number, ticket.title, ticket.priority, ticket.due_date, c.env.FRONTEND_URL);
+        const email = ticketAssignedEmail(ticket.ticket_number, ticket.title, ticket.priority, ticket.edc, c.env.FRONTEND_URL);
         c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.email], ...email }));
       }
     }
@@ -200,10 +220,11 @@ ticketRoutes.patch('/:id', async (c) => {
 // PATCH /api/v1/tickets/:id/move (Dev+ only)
 ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
   const { id } = c.req.param();
-  const { status, sort_order } = await c.req.json<{ status: TicketStatus; sort_order: number }>();
+  const { status, sort_order } = await c.req.json<{ status: string; sort_order: number }>();
 
-  const validStatuses: TicketStatus[] = ['backlog', 'todo', 'in_progress', 'in_review', 'done'];
-  if (!validStatuses.includes(status)) {
+  // Validate status against columns table
+  const column = await c.env.DB.prepare('SELECT * FROM columns WHERE slug = ?').bind(status).first<{ slug: string; is_terminal: number }>();
+  if (!column) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid status.' } }, 400);
   }
 
@@ -216,8 +237,8 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
   await c.env.DB.prepare('UPDATE tickets SET status = ?, sort_order = ?, updated_at = ? WHERE id = ?')
     .bind(status, sort_order, now, id).run();
 
-  // Notify submitter on status change to in_review or done
-  if ((status === 'in_review' || status === 'done') && ticket.status !== status) {
+  // Notify submitter when moved to a terminal column
+  if (column.is_terminal && ticket.status !== status) {
     const submitter = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(ticket.submitter_id).first<{ email: string }>();
     if (submitter) {
       const email = ticketStatusEmail(ticket.ticket_number, ticket.title, status, c.env.FRONTEND_URL);

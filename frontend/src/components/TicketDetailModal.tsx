@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type TicketWithMeta, type Comment, type User } from '../lib/api';
+import { api, type TicketWithMeta, type Comment, type User, type Product, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
 
 const priorityOptions = [
@@ -7,14 +7,6 @@ const priorityOptions = [
   { value: 'p1', label: 'P1 — High' },
   { value: 'p2', label: 'P2 — Normal' },
   { value: 'p3', label: 'P3 — Low' },
-];
-
-const statusOptions = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'todo', label: 'To Do' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'in_review', label: 'In Review' },
-  { value: 'done', label: 'Done' },
 ];
 
 interface Props {
@@ -28,6 +20,8 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [devUsers, setDevUsers] = useState<User[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [statusColumns, setStatusColumns] = useState<Column[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -37,7 +31,10 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
     priority: ticket.priority,
     status: ticket.status,
     assignee_id: ticket.assignee_id || '',
-    due_date: ticket.due_date ? new Date(ticket.due_date * 1000).toISOString().split('T')[0] : '',
+    edc: ticket.edc ? new Date(ticket.edc * 1000).toISOString().split('T')[0] : '',
+    product_version: ticket.product_version || '',
+    ticket_type: ticket.ticket_type || 'bug',
+    product_id: ticket.product_id || '',
     tags: ticket.tags.join(', '),
   });
 
@@ -46,6 +43,8 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
 
   useEffect(() => {
     api.getComments(ticket.id).then(setComments);
+    api.getProducts().then(setProducts).catch(() => {});
+    api.getColumns().then(setStatusColumns).catch(() => {});
     if (canEdit) {
       api.getUsers().catch(() => []).then((users) => {
         if (Array.isArray(users)) {
@@ -58,7 +57,6 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   async function handleSave() {
     setSaving(true);
     setSaveError('');
-
     try {
       const updates: any = {};
       if (form.title !== ticket.title) updates.title = form.title;
@@ -66,18 +64,18 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
       if (form.priority !== ticket.priority) updates.priority = form.priority;
       if (form.assignee_id !== (ticket.assignee_id || '')) updates.assignee_id = form.assignee_id || null;
       if (form.tags !== ticket.tags.join(', ')) updates.tags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-
-      const dueDateUnix = form.due_date ? Math.floor(new Date(form.due_date).getTime() / 1000) : null;
-      if (dueDateUnix !== ticket.due_date) updates.due_date = dueDateUnix;
+      if (form.product_version !== (ticket.product_version || '')) updates.product_version = form.product_version || null;
+      if (form.ticket_type !== (ticket.ticket_type || 'bug')) updates.ticket_type = form.ticket_type;
+      if (form.product_id !== (ticket.product_id || '')) updates.product_id = form.product_id || null;
+      const edcUnix = form.edc ? Math.floor(new Date(form.edc).getTime() / 1000) : null;
+      if (edcUnix !== ticket.edc) updates.edc = edcUnix;
 
       if (form.status !== ticket.status) {
         await api.moveTicket(ticket.id, form.status, ticket.sort_order);
       }
-
       if (Object.keys(updates).length > 0) {
         await api.updateTicket(ticket.id, updates);
       }
-
       setEditing(false);
       onUpdate();
     } catch (e: any) {
@@ -87,224 +85,258 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
     }
   }
 
+  const [commentError, setCommentError] = useState('');
+
   async function handleAddComment() {
     if (!newComment.trim()) return;
-    const comment = await api.addComment(ticket.id, newComment);
-    setComments([...comments, comment]);
-    setNewComment('');
+    setCommentError('');
+    try {
+      const comment = await api.addComment(ticket.id, newComment);
+      setComments([...comments, comment]);
+      setNewComment('');
+    } catch (e: any) {
+      setCommentError(e.message || 'Failed to add comment.');
+    }
   }
+
+  const fieldLabel = "text-[11px] text-text-muted block mb-1 font-medium uppercase tracking-wider";
+  const fieldInput = "w-full bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[13px]";
+  const fieldValue = "text-[13px] text-text-secondary";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-lg bg-bg-surface border-l border-zinc-800 h-full overflow-y-auto"
+        className="relative w-full max-w-xl bg-bg-surface border-l border-border h-full overflow-y-auto shadow-2xl shadow-black/40"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-sm text-text-muted">PDO-{ticket.ticket_number}</span>
-            <div className="flex gap-2">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-[13px] font-mono text-text-muted font-medium">PDO-{ticket.ticket_number}</span>
+              {ticket.product_name && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded font-medium"
+                  style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}>
+                  {ticket.product_name}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5">
               {canEdit && !editing && (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="text-xs px-2 py-1 rounded bg-bg-elevated text-text-muted hover:text-text-primary"
-                >
+                <button onClick={() => setEditing(true)}
+                  className="text-[12px] px-2.5 py-1 rounded-md bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover font-medium">
                   Edit
                 </button>
               )}
-              <button
-                onClick={onClose}
-                className="text-text-muted hover:text-text-primary text-lg leading-none"
-              >
-                x
+              <button onClick={onClose}
+                className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-hover">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
               </button>
             </div>
           </div>
 
           {/* Title */}
           {editing ? (
-            <input
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-lg font-semibold mb-4"
-            />
+            <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className={`${fieldInput} text-lg font-semibold mb-5`} />
           ) : (
-            <h2 className="text-lg font-semibold mb-4">{ticket.title}</h2>
+            <h2 className="text-lg font-semibold text-text-primary mb-5 leading-snug">{ticket.title}</h2>
           )}
 
-          {/* Meta fields */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          {/* Meta grid */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 mb-6 pb-6 border-b border-border-subtle">
             <div>
-              <label className="text-xs text-text-muted block mb-1">Status</label>
+              <label className={fieldLabel}>Status</label>
               {editing ? (
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="w-full bg-bg-elevated border border-zinc-700 rounded px-2 py-1.5 text-sm"
-                >
-                  {statusOptions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={fieldInput}>
+                  {statusColumns.map((o) => <option key={o.slug} value={o.slug}>{o.name}</option>)}
                 </select>
               ) : (
-                <span className="text-sm capitalize">{ticket.status.replace('_', ' ')}</span>
+                <span className={fieldValue}>{statusColumns.find(c => c.slug === ticket.status)?.name || ticket.status}</span>
               )}
             </div>
             <div>
-              <label className="text-xs text-text-muted block mb-1">Priority</label>
+              <label className={fieldLabel}>Priority</label>
               {editing ? (
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
-                  className="w-full bg-bg-elevated border border-zinc-700 rounded px-2 py-1.5 text-sm"
-                >
-                  {priorityOptions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
+                <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className={fieldInput}>
+                  {priorityOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : (
-                <span className="text-sm uppercase">{ticket.priority}</span>
+                <span className={`${fieldValue} uppercase font-mono font-medium`}>{ticket.priority}</span>
               )}
             </div>
             <div>
-              <label className="text-xs text-text-muted block mb-1">Assignee</label>
+              <label className={fieldLabel}>Assignee</label>
               {editing ? (
-                <select
-                  value={form.assignee_id}
-                  onChange={(e) => setForm({ ...form, assignee_id: e.target.value })}
-                  className="w-full bg-bg-elevated border border-zinc-700 rounded px-2 py-1.5 text-sm"
-                >
+                <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className={fieldInput}>
                   <option value="">Unassigned</option>
-                  {devUsers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
+                  {devUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               ) : (
-                <span className="text-sm">{ticket.assignee_id ? 'Assigned' : 'Unassigned'}</span>
+                <span className={fieldValue}>{ticket.assignee_id ? 'Assigned' : 'Unassigned'}</span>
               )}
             </div>
             <div>
-              <label className="text-xs text-text-muted block mb-1">Due Date</label>
+              <label className={fieldLabel}>Est. Completion</label>
               {editing ? (
-                <input
-                  type="date"
-                  value={form.due_date}
-                  onChange={(e) => setForm({ ...form, due_date: e.target.value })}
-                  className="w-full bg-bg-elevated border border-zinc-700 rounded px-2 py-1.5 text-sm"
-                />
+                <input type="date" value={form.edc}
+                  onChange={(e) => setForm({ ...form, edc: e.target.value })}
+                  className={fieldInput} />
               ) : (
-                <span className="text-sm">
-                  {ticket.due_date
-                    ? new Date(ticket.due_date * 1000).toLocaleDateString()
-                    : 'None'}
+                <span className={fieldValue}>{ticket.edc ? new Date(ticket.edc * 1000).toLocaleDateString() : '—'}</span>
+              )}
+            </div>
+            <div>
+              <label className={fieldLabel}>Product</label>
+              {editing ? (
+                <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })} className={fieldInput}>
+                  <option value="">None</option>
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              ) : (
+                <span className={fieldValue}>
+                  {ticket.product_name ? (
+                    <span style={{ color: ticket.product_color || undefined }}>{ticket.product_name}</span>
+                  ) : 'None'}
                 </span>
               )}
             </div>
-          </div>
-
-          {/* Tags */}
-          <div className="mb-4">
-            <label className="text-xs text-text-muted block mb-1">Tags</label>
-            {editing ? (
-              <input
-                value={form.tags}
-                onChange={(e) => setForm({ ...form, tags: e.target.value })}
-                placeholder="Comma-separated tags"
-                className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-1.5 text-sm"
-              />
-            ) : (
-              <div className="flex gap-1.5 flex-wrap">
-                {ticket.tags.map((tag) => (
-                  <span key={tag} className="text-xs px-2 py-0.5 bg-bg-elevated rounded text-text-muted">
-                    {tag}
-                  </span>
-                ))}
-                {ticket.tags.length === 0 && <span className="text-xs text-text-muted">None</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Description */}
-          <div className="mb-6">
-            <label className="text-xs text-text-muted block mb-1">Description</label>
-            {editing ? (
-              <textarea
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-                rows={6}
-                className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm resize-y"
-              />
-            ) : (
-              <div className="text-sm text-zinc-300 whitespace-pre-wrap">
-                {ticket.description || 'No description.'}
-              </div>
-            )}
+            <div>
+              <label className={fieldLabel}>Type</label>
+              {editing ? (
+                <select value={form.ticket_type} onChange={(e) => setForm({ ...form, ticket_type: e.target.value as 'bug' | 'feature' })} className={fieldInput}>
+                  <option value="bug">Bug</option>
+                  <option value="feature">Feature Request</option>
+                </select>
+              ) : (
+                <span className={`${fieldValue} ${ticket.ticket_type === 'feature' ? 'text-success' : 'text-danger'}`}>
+                  {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
+                </span>
+              )}
+            </div>
+            <div>
+              <label className={fieldLabel}>Version</label>
+              {editing ? (
+                <input value={form.product_version} onChange={(e) => setForm({ ...form, product_version: e.target.value })} placeholder="e.g. 2.4.1" className={fieldInput} />
+              ) : (
+                <span className={`${fieldValue} font-mono`}>{ticket.product_version || '—'}</span>
+              )}
+            </div>
+            <div>
+              <label className={fieldLabel}>Tags</label>
+              {editing ? (
+                <input value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} placeholder="Comma-separated" className={fieldInput} />
+              ) : (
+                <div className="flex gap-1 flex-wrap">
+                  {ticket.tags.map((tag) => (
+                    <span key={tag} className="text-[11px] px-1.5 py-0.5 bg-bg-elevated rounded text-text-muted">{tag}</span>
+                  ))}
+                  {ticket.tags.length === 0 && <span className={fieldValue}>—</span>}
+                </div>
+              )}
+            </div>
+            <div>
+              <label className={fieldLabel}>Submitted By</label>
+              <span className={fieldValue}>{ticket.submitter_name || '—'}</span>
+            </div>
+            <div>
+              <label className={fieldLabel}>Submitted</label>
+              <span className={fieldValue}>{new Date(ticket.created_at * 1000).toLocaleString()}</span>
+            </div>
           </div>
 
           {/* Save / Cancel */}
           {editing && (
             <div className="mb-6">
               {saveError && (
-                <div className="bg-p0/10 border border-p0/30 rounded p-2 mb-2">
-                  <p className="text-p0 text-xs">{saveError}</p>
+                <div className="bg-danger/8 border border-danger/20 rounded-lg p-2.5 mb-3">
+                  <p className="text-danger text-xs">{saveError}</p>
                 </div>
               )}
-              <div className="flex gap-2">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="px-4 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent/90 disabled:opacity-50"
-              >
-                {saving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={() => { setEditing(false); setSaveError(''); }}
-                disabled={saving}
-                className="px-4 py-1.5 bg-bg-elevated text-text-muted rounded text-sm hover:text-text-primary disabled:opacity-50"
-              >
-                Cancel
-              </button>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                  <button onClick={handleSave} disabled={saving}
+                    className="px-4 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover disabled:opacity-50">
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                  <button onClick={() => { setEditing(false); setSaveError(''); }} disabled={saving}
+                    className="px-4 py-1.5 bg-bg-elevated border border-border text-text-secondary rounded-lg text-[13px] hover:text-text-primary hover:bg-bg-hover disabled:opacity-50">
+                    Cancel
+                  </button>
+                </div>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Delete ticket PDO-${ticket.ticket_number}? This cannot be undone.`)) return;
+                      try { await api.deleteTicket(ticket.id); onUpdate(); } catch (e: any) { setSaveError(e.message); }
+                    }}
+                    className="text-[12px] text-danger/60 hover:text-danger font-medium">
+                    Delete Ticket
+                  </button>
+                )}
               </div>
             </div>
           )}
 
+          {/* Description */}
+          <div className="mb-6 pb-6 border-b border-border-subtle">
+            <label className={`${fieldLabel} mb-2`}>Description</label>
+            {editing ? (
+              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={6}
+                className={`${fieldInput} resize-y`} />
+            ) : (
+              <div className="text-[13px] text-text-secondary whitespace-pre-wrap leading-relaxed">
+                {ticket.description || 'No description.'}
+              </div>
+            )}
+          </div>
+
           {/* Comments */}
-          <div className="border-t border-zinc-800 pt-4">
-            <h3 className="text-sm font-medium mb-3">Comments ({comments.length})</h3>
-            <div className="space-y-3 mb-4">
+          <div>
+            <h3 className={`${fieldLabel} mb-3`}>Comments <span className="text-text-muted">({comments.length})</span></h3>
+            <div className="space-y-2.5 mb-4">
               {comments.map((comment) => (
-                <div key={comment.id} className="bg-bg-elevated rounded p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium">{comment.author_name}</span>
+                <div key={comment.id} className="bg-bg-elevated rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] text-accent font-semibold">
+                      {comment.author_name?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <span className="text-[12px] font-medium text-text-primary">{comment.author_name}</span>
                     <span className="text-[10px] text-text-muted">
                       {new Date(comment.created_at * 1000).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-sm text-zinc-300 whitespace-pre-wrap">{comment.body}</p>
+                  <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{comment.body}</p>
                 </div>
               ))}
               {comments.length === 0 && (
-                <p className="text-sm text-text-muted">No comments yet.</p>
+                <p className="text-[13px] text-text-muted">No comments yet.</p>
               )}
             </div>
 
             {canComment && (
-              <div className="flex gap-2">
-                <input
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                  placeholder="Add a comment..."
-                  className="flex-1 bg-bg-elevated border border-zinc-700 rounded px-3 py-1.5 text-sm"
-                />
-                <button
-                  onClick={handleAddComment}
-                  className="px-3 py-1.5 bg-accent text-white rounded text-sm hover:bg-accent/90"
-                >
-                  Send
-                </button>
+              <div>
+                {commentError && (
+                  <div className="bg-danger/8 border border-danger/20 rounded-lg p-2 mb-2">
+                    <p className="text-danger text-[11px]">{commentError}</p>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
+                    placeholder="Write a comment..."
+                    className={`flex-1 ${fieldInput}`}
+                  />
+                  <button onClick={handleAddComment}
+                    className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover">
+                    Send
+                  </button>
+                </div>
               </div>
             )}
           </div>

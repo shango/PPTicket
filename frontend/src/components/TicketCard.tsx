@@ -2,18 +2,11 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import type { TicketWithMeta } from '../lib/api';
 
-const priorityColors: Record<string, string> = {
-  p0: 'bg-p0 text-white',
-  p1: 'bg-p1 text-white',
-  p2: 'bg-p2 text-white',
-  p3: 'bg-p3 text-white',
-};
-
-const priorityLabels: Record<string, string> = {
-  p0: 'P0',
-  p1: 'P1',
-  p2: 'P2',
-  p3: 'P3',
+const priorityStyles: Record<string, { bg: string; text: string }> = {
+  p0: { bg: 'rgba(212, 86, 78, 0.12)', text: '#d4564e' },
+  p1: { bg: 'rgba(212, 148, 78, 0.12)', text: '#d4944e' },
+  p2: { bg: 'rgba(124, 127, 223, 0.12)', text: '#7c7fdf' },
+  p3: { bg: 'rgba(95, 98, 112, 0.15)', text: '#5f6270' },
 };
 
 interface Props {
@@ -28,13 +21,16 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
     disabled: !isDraggable,
   });
 
-  const style = {
+  const pStyle = priorityStyles[ticket.priority] || priorityStyles.p3;
+
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
+    opacity: isDragging ? 0.4 : 1,
+    borderLeftColor: ticket.product_color || '#2a2c35',
   };
 
-  const isOverdue = ticket.due_date && ticket.due_date * 1000 < Date.now();
+  const isPastEdc = ticket.edc && ticket.edc * 1000 < Date.now();
 
   return (
     <div
@@ -43,38 +39,71 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`bg-bg-surface border border-zinc-800 rounded-lg p-3 cursor-pointer hover:border-zinc-700 transition-colors ${isDragging ? 'shadow-lg' : ''}`}
+      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg p-3 cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
     >
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs text-text-muted">PDO-{ticket.ticket_number}</span>
-        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${priorityColors[ticket.priority]}`}>
-          {priorityLabels[ticket.priority]}
-        </span>
-      </div>
-
-      <h3 className="text-sm font-medium text-text-primary mb-2 line-clamp-2">{ticket.title}</h3>
-
-      <div className="flex items-center gap-2 flex-wrap">
-        {ticket.tags.slice(0, 2).map((tag) => (
-          <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-bg-elevated rounded text-text-muted">
-            {tag}
+      {/* Top row: ticket number, product, type, priority */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-mono text-text-muted font-medium">PDO-{ticket.ticket_number}</span>
+          {ticket.product_abbreviation && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+              style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}
+            >
+              {ticket.product_abbreviation}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+            ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+          }`}>
+            {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
           </span>
-        ))}
-        {ticket.tags.length > 2 && (
-          <span className="text-[10px] text-text-muted">+{ticket.tags.length - 2} more</span>
-        )}
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+            style={{ backgroundColor: pStyle.bg, color: pStyle.text }}
+          >
+            {ticket.priority.toUpperCase()}
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between mt-2 text-[11px] text-text-muted">
+      {/* Title */}
+      <h3 className="text-[13px] font-medium text-text-primary mb-2 line-clamp-2 leading-snug">{ticket.title}</h3>
+
+      {/* Tags */}
+      {ticket.tags.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-2">
+          {ticket.tags.slice(0, 2).map((tag) => (
+            <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-bg-elevated rounded text-text-muted">
+              {tag}
+            </span>
+          ))}
+          {ticket.tags.length > 2 && (
+            <span className="text-[10px] text-text-muted">+{ticket.tags.length - 2}</span>
+          )}
+        </div>
+      )}
+
+      {/* Footer: submitter, date, version, assignee */}
+      <div className="flex items-center justify-between text-[11px] text-text-muted">
         <div className="flex items-center gap-2">
-          {ticket.due_date && (
-            <span className={isOverdue ? 'text-p0' : ''}>
-              {new Date(ticket.due_date * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          {ticket.submitter_name && (
+            <span>{ticket.submitter_name}</span>
+          )}
+          <span>{new Date(ticket.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          {ticket.product_version && (
+            <span className="font-mono">v{ticket.product_version}</span>
+          )}
+          {ticket.edc && (
+            <span className={isPastEdc ? 'text-danger' : ''}>
+              EDC {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
           )}
         </div>
         {ticket.assignee_id && (
-          <div className="w-5 h-5 rounded-full bg-accent/30 flex items-center justify-center text-[9px] text-accent font-medium">
+          <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] text-accent font-semibold">
             A
           </div>
         )}
