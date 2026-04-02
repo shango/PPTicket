@@ -95,9 +95,18 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
             </span>
           )}
         </div>
-        {ticket.assignee_name && (
-          <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] text-accent font-semibold">
-            {ticket.assignee_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+        {ticket.assignee_names.length > 0 && (
+          <div className="flex -space-x-1.5">
+            {ticket.assignee_names.slice(0, 3).map((name, i) => (
+              <div key={i} className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] text-accent font-semibold ring-1 ring-bg-surface">
+                {name.split(' ').map(n => n[0]).join('').toUpperCase()}
+              </div>
+            ))}
+            {ticket.assignee_names.length > 3 && (
+              <div className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-[9px] text-text-muted font-medium ring-1 ring-bg-surface">
+                +{ticket.assignee_names.length - 3}
+              </div>
+            )}
           </div>
         )}
       </div>

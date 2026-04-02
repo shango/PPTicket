@@ -31,7 +31,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
     description: ticket.description || '',
     priority: ticket.priority,
     status: ticket.status,
-    assignee_id: ticket.assignee_id || '',
+    assignee_ids: ticket.assignee_ids || [],
     edc: ticket.edc ? new Date(ticket.edc * 1000).toISOString().split('T')[0] : '',
     product_version: ticket.product_version || '',
     ticket_type: ticket.ticket_type || 'bug',
@@ -63,7 +63,9 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
       if (form.title !== ticket.title) updates.title = form.title;
       if (form.description !== (ticket.description || '')) updates.description = form.description;
       if (form.priority !== ticket.priority) updates.priority = form.priority;
-      if (form.assignee_id !== (ticket.assignee_id || '')) updates.assignee_id = form.assignee_id || null;
+      const currentIds = (ticket.assignee_ids || []).slice().sort().join(',');
+      const newIds = form.assignee_ids.slice().sort().join(',');
+      if (currentIds !== newIds) updates.assignee_ids = form.assignee_ids;
       if (form.tags !== ticket.tags.join(', ')) updates.tags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
       if (form.product_version !== (ticket.product_version || '')) updates.product_version = form.product_version || null;
       if (form.ticket_type !== (ticket.ticket_type || 'bug')) updates.ticket_type = form.ticket_type;
@@ -175,14 +177,30 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
               )}
             </div>
             <div>
-              <label className={fieldLabel}>Assignee</label>
+              <label className={fieldLabel}>Assignees</label>
               {editing ? (
-                <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })} className={fieldInput}>
-                  <option value="">Unassigned</option>
-                  {devUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {devUsers.map((u) => (
+                    <label key={u.id} className="flex items-center gap-2 text-[13px] text-text-secondary cursor-pointer hover:text-text-primary">
+                      <input
+                        type="checkbox"
+                        checked={form.assignee_ids.includes(u.id)}
+                        onChange={(e) => {
+                          setForm({
+                            ...form,
+                            assignee_ids: e.target.checked
+                              ? [...form.assignee_ids, u.id]
+                              : form.assignee_ids.filter(id => id !== u.id),
+                          });
+                        }}
+                        className="rounded"
+                      />
+                      {u.name}
+                    </label>
+                  ))}
+                </div>
               ) : (
-                <span className={fieldValue}>{ticket.assignee_name || 'Unassigned'}</span>
+                <span className={fieldValue}>{ticket.assignee_names.length > 0 ? ticket.assignee_names.join(', ') : 'Unassigned'}</span>
               )}
             </div>
             <div>

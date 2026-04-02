@@ -145,7 +145,6 @@ export interface TicketWithMeta {
   description: string | null;
   status: string;
   priority: string;
-  assignee_id: string | null;
   submitter_id: string;
   edc: number | null;
   product_version: string | null;
@@ -155,7 +154,8 @@ export interface TicketWithMeta {
   product_abbreviation: string | null;
   product_color: string | null;
   submitter_name: string | null;
-  assignee_name: string | null;
+  assignee_ids: string[];
+  assignee_names: string[];
   sort_order: number;
   created_at: number;
   updated_at: number;
@@ -206,7 +206,7 @@ export interface UpdateTicketPayload {
   title: string;
   description: string;
   priority: string;
-  assignee_id: string | null;
+  assignee_ids: string[];
   edc: number | null;
   product_version: string | null;
   ticket_type: 'bug' | 'feature';

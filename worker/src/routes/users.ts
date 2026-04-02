@@ -147,7 +147,7 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
 
   if (permanent) {
     // Clean up all references before deleting
-    await c.env.DB.prepare('UPDATE tickets SET assignee_id = NULL WHERE assignee_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('UPDATE tickets SET submitter_id = ? WHERE submitter_id = ?').bind(currentUser.id, id).run();
     await c.env.DB.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();

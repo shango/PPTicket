@@ -162,7 +162,7 @@ export function AdminPage() {
         t.ticket_type,
         t.product_name || '',
         t.product_version || '',
-        t.assignee_id || '',
+        (t.assignee_names || []).join('; '),
         t.submitter_name || '',
         t.edc ? new Date(t.edc * 1000).toLocaleDateString() : '',
         (t.tags || []).join('; '),

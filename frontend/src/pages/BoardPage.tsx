@@ -59,7 +59,7 @@ export function BoardPage() {
       result = result.filter((t) => t.product_id === projectFilter);
     }
     if (myTickets && user) {
-      result = result.filter((t) => t.assignee_id === user.id);
+      result = result.filter((t) => t.assignee_ids.includes(user.id));
     }
     return result;
   }, [tickets, search, priorityFilter, projectFilter, myTickets, user]);

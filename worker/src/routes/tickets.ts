@@ -14,13 +14,13 @@ ticketRoutes.get('/', async (c) => {
   const submitter = c.req.query('submitter');
   const product = c.req.query('product');
 
-  let query = 'SELECT t.*, GROUP_CONCAT(tt.tag) as tags, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name, a.name as assignee_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN users a ON t.assignee_id = a.id';
+  let query = 'SELECT t.*, GROUP_CONCAT(DISTINCT tt.tag) as tags, GROUP_CONCAT(DISTINCT ta.user_id) as assignee_ids, GROUP_CONCAT(DISTINCT a.name) as assignee_names, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN ticket_assignees ta ON t.id = ta.ticket_id LEFT JOIN users a ON ta.user_id = a.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id';
   const conditions: string[] = [];
   const params: string[] = [];
 
   if (status) { conditions.push('t.status = ?'); params.push(status); }
   if (priority) { conditions.push('t.priority = ?'); params.push(priority); }
-  if (assignee) { conditions.push('t.assignee_id = ?'); params.push(assignee); }
+  if (assignee) { conditions.push('EXISTS (SELECT 1 FROM ticket_assignees WHERE ticket_id = t.id AND user_id = ?)'); params.push(assignee); }
   if (submitter) { conditions.push('t.submitter_id = ?'); params.push(submitter); }
   if (tag) { conditions.push('EXISTS (SELECT 1 FROM ticket_tags WHERE ticket_id = t.id AND tag = ?)'); params.push(tag); }
   if (product) { conditions.push('t.product_id = ?'); params.push(product); }
@@ -38,6 +38,8 @@ ticketRoutes.get('/', async (c) => {
   const tickets = result.results.map((t: any) => ({
     ...t,
     tags: t.tags ? t.tags.split(',') : [],
+    assignee_ids: t.assignee_ids ? t.assignee_ids.split(',') : [],
+    assignee_names: t.assignee_names ? t.assignee_names.split(',') : [],
   }));
 
   return c.json({ data: tickets, error: null });
@@ -96,10 +98,17 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 
   // Atomic insert with computed ticket_number and sort_order to avoid race conditions
   await c.env.DB.prepare(
-    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, assignee_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
-     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
+    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
+     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
      FROM tickets`
-  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, assigneeId, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
+  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
+
+  // Add default assignee to junction table
+  if (assigneeId) {
+    await c.env.DB.prepare(
+      'INSERT INTO ticket_assignees (ticket_id, user_id, created_at) VALUES (?, ?, ?)'
+    ).bind(id, assigneeId, now).run();
+  }
 
   const inserted = await c.env.DB.prepare('SELECT ticket_number FROM tickets WHERE id = ?').bind(id).first<{ ticket_number: number }>();
   const ticketNumber = inserted!.ticket_number;
@@ -128,20 +137,26 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   }
 
   const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
-  return c.json({ data: { ...ticket, tags: body.tags || [] }, error: null }, 201);
+  const assignees = await c.env.DB.prepare(
+    'SELECT ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
+  ).bind(id).all<{ user_id: string; name: string }>();
+  return c.json({ data: { ...ticket, tags: body.tags || [], assignee_ids: assignees.results.map(a => a.user_id), assignee_names: assignees.results.map(a => a.name) }, error: null }, 201);
 });
 
 // GET /api/v1/tickets/:id
 ticketRoutes.get('/:id', async (c) => {
   const { id } = c.req.param();
   const ticket = await c.env.DB.prepare(
-    'SELECT t.*, u.name as submitter_name, a.name as assignee_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN users a ON t.assignee_id = a.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
+    'SELECT t.*, u.name as submitter_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
   ).bind(id).first();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
 
   const tags = await c.env.DB.prepare('SELECT tag FROM ticket_tags WHERE ticket_id = ?').bind(id).all<{ tag: string }>();
+  const assignees = await c.env.DB.prepare(
+    'SELECT ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
+  ).bind(id).all<{ user_id: string; name: string }>();
   const commentCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM comments WHERE ticket_id = ?').bind(id).first<{ count: number }>();
   const attachmentCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM attachments WHERE ticket_id = ?').bind(id).first<{ count: number }>();
 
@@ -149,6 +164,8 @@ ticketRoutes.get('/:id', async (c) => {
     data: {
       ...ticket,
       tags: tags.results.map(t => t.tag),
+      assignee_ids: assignees.results.map(a => a.user_id),
+      assignee_names: assignees.results.map(a => a.name),
       comment_count: commentCount?.count || 0,
       attachment_count: attachmentCount?.count || 0,
     },
@@ -178,7 +195,7 @@ ticketRoutes.patch('/:id', async (c) => {
     title: string;
     description: string;
     priority: Priority;
-    assignee_id: string | null;
+    assignee_ids: string[];
     edc: number | null;
     product_version: string | null;
     ticket_type: TicketType;
@@ -219,20 +236,42 @@ ticketRoutes.patch('/:id', async (c) => {
   }
   if (body.edc !== undefined) { updates.push('edc = ?'); values.push(body.edc); }
 
-  // Handle assignee change with notification (dev/admin only)
-  if (body.assignee_id !== undefined) {
+  // Handle assignee changes with notification (dev/admin only)
+  if (body.assignee_ids !== undefined) {
     if (isDM) {
       return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can assign tickets.' } }, 403);
     }
-    updates.push('assignee_id = ?');
-    values.push(body.assignee_id);
 
-    if (body.assignee_id && body.assignee_id !== ticket.assignee_id) {
-      const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(body.assignee_id).first<{ email: string }>();
+    // Get current assignees for diff
+    const currentAssignees = await c.env.DB.prepare(
+      'SELECT user_id FROM ticket_assignees WHERE ticket_id = ?'
+    ).bind(id).all<{ user_id: string }>();
+    const currentIds = new Set(currentAssignees.results.map(a => a.user_id));
+
+    // Delete and reinsert
+    await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE ticket_id = ?').bind(id).run();
+    if (body.assignee_ids.length > 0) {
+      const inserts = body.assignee_ids.slice(0, 10).map(userId =>
+        c.env.DB.prepare('INSERT INTO ticket_assignees (ticket_id, user_id, created_at) VALUES (?, ?, ?)')
+          .bind(id, userId, now).run()
+      );
+      await Promise.all(inserts);
+    }
+
+    // Notify newly added assignees only
+    const newAssignees = body.assignee_ids.filter(uid => !currentIds.has(uid));
+    for (const assigneeUserId of newAssignees) {
+      const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(assigneeUserId).first<{ email: string }>();
       if (assignee) {
         const email = ticketAssignedEmail(ticket.ticket_number, ticket.title, ticket.priority, ticket.edc, c.env.FRONTEND_URL);
         c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.email], ...email }));
       }
+    }
+
+    // Mark updated_at even if no other field changes
+    if (updates.length === 0) {
+      updates.push('updated_at = ?');
+      values.push(now);
     }
   }
 
@@ -254,7 +293,10 @@ ticketRoutes.patch('/:id', async (c) => {
 
   const updated = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
   const tags = await c.env.DB.prepare('SELECT tag FROM ticket_tags WHERE ticket_id = ?').bind(id).all<{ tag: string }>();
-  return c.json({ data: { ...updated, tags: tags.results.map(t => t.tag) }, error: null });
+  const assigneesResult = await c.env.DB.prepare(
+    'SELECT ta.user_id, u.name FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
+  ).bind(id).all<{ user_id: string; name: string }>();
+  return c.json({ data: { ...updated, tags: tags.results.map(t => t.tag), assignee_ids: assigneesResult.results.map(a => a.user_id), assignee_names: assigneesResult.results.map(a => a.name) }, error: null });
 });
 
 // PATCH /api/v1/tickets/:id/move (Dev+ only)
@@ -309,7 +351,7 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Comment body is required.' } }, 400);
   }
 
-  const ticket = await c.env.DB.prepare('SELECT id, ticket_number, title, assignee_id, product_id FROM tickets WHERE id = ?').bind(ticketId).first<{ id: string; ticket_number: number; title: string; assignee_id: string | null; product_id: string | null }>();
+  const ticket = await c.env.DB.prepare('SELECT id, ticket_number, title, product_id FROM tickets WHERE id = ?').bind(ticketId).first<{ id: string; ticket_number: number; title: string; product_id: string | null }>();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
@@ -320,11 +362,13 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
     'INSERT INTO comments (id, ticket_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, ticketId, user.id, body, now).run();
 
-  // Notify assignee + project default owner (excluding the comment author)
+  // Notify all assignees + project default owner (excluding the comment author)
   const toEmails = new Set<string>();
-  if (ticket.assignee_id && ticket.assignee_id !== user.id) {
-    const assignee = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(ticket.assignee_id).first<{ email: string }>();
-    if (assignee) toEmails.add(assignee.email);
+  const ticketAssignees = await c.env.DB.prepare(
+    'SELECT ta.user_id, u.email FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
+  ).bind(ticketId).all<{ user_id: string; email: string }>();
+  for (const a of ticketAssignees.results) {
+    if (a.user_id !== user.id) toEmails.add(a.email);
   }
   if (ticket.product_id) {
     const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(ticket.product_id).first<{ default_owner_id: string | null }>();

@@ -28,7 +28,6 @@ export interface Ticket {
   description: string | null;
   status: TicketStatus;
   priority: Priority;
-  assignee_id: string | null;
   submitter_id: string;
   edc: number | null;
   product_version: string | null;
