@@ -32,6 +32,11 @@ export function SubmitPage() {
     }
     if (user) {
       setForm(f => ({ ...f, submitter_id: f.submitter_id || user.id }));
+    }
+  }, [user, isAdmin]);
+
+  useEffect(() => {
+    if (user) {
       api.getTickets({ submitter: user.id }).then(setMyTickets).catch(() => {});
     }
   }, [user, success]);

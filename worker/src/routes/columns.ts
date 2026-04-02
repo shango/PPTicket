@@ -107,9 +107,14 @@ columnRoutes.post('/reorder', requireRole('admin'), async (c) => {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Order array is required.' } }, 400);
   }
 
-  const updates = order.map(({ id, sort_order }) =>
-    c.env.DB.prepare('UPDATE columns SET sort_order = ? WHERE id = ?').bind(sort_order, id).run()
-  );
+  // Validate all IDs are real columns
+  const allCols = await c.env.DB.prepare('SELECT id FROM columns').all<{ id: string }>();
+  const validIds = new Set(allCols.results.map(c => c.id));
+  const updates = order
+    .filter(({ id, sort_order }) => validIds.has(id) && typeof sort_order === 'number')
+    .map(({ id, sort_order }) =>
+      c.env.DB.prepare('UPDATE columns SET sort_order = ? WHERE id = ?').bind(sort_order, id).run()
+    );
   await Promise.all(updates);
 
   const result = await c.env.DB.prepare('SELECT * FROM columns ORDER BY sort_order ASC').all<Column>();

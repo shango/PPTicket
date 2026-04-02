@@ -26,6 +26,16 @@ projectRoutes.post('/', requireRole('admin'), async (c) => {
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
 
+  if (color && !/^#[0-9a-fA-F]{3,8}$/.test(color)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid color format.' } }, 400);
+  }
+  if (default_owner_id) {
+    const ownerExists = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(default_owner_id).first();
+    if (!ownerExists) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Default owner not found.' } }, 400);
+    }
+  }
+
   await c.env.DB.prepare(
     'INSERT INTO products (id, name, abbreviation, color, default_owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?)'
   ).bind(id, name, abbreviation.toUpperCase(), color || '#6366f1', default_owner_id || null, now).run();
@@ -46,8 +56,21 @@ projectRoutes.patch('/:id', requireRole('admin'), async (c) => {
 
   if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name); }
   if (body.abbreviation !== undefined) { updates.push('abbreviation = ?'); values.push(body.abbreviation.toUpperCase()); }
-  if (body.color !== undefined) { updates.push('color = ?'); values.push(body.color); }
-  if (body.default_owner_id !== undefined) { updates.push('default_owner_id = ?'); values.push(body.default_owner_id); }
+  if (body.color !== undefined) {
+    if (body.color && !/^#[0-9a-fA-F]{3,8}$/.test(body.color)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid color format.' } }, 400);
+    }
+    updates.push('color = ?'); values.push(body.color);
+  }
+  if (body.default_owner_id !== undefined) {
+    if (body.default_owner_id) {
+      const ownerExists = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(body.default_owner_id).first();
+      if (!ownerExists) {
+        return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Default owner not found.' } }, 400);
+      }
+    }
+    updates.push('default_owner_id = ?'); values.push(body.default_owner_id);
+  }
 
   if (updates.length === 0) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No fields to update.' } }, 400);

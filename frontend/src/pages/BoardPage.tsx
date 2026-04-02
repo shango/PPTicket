@@ -108,14 +108,16 @@ export function BoardPage() {
     const { active, over } = event;
     if (!over) return;
 
-    const activeTicket = filteredTickets.find((t) => t.id === active.id);
+    // Read from store directly to avoid stale closure after optimistic updates
+    const currentTickets = useStore.getState().tickets;
+    const activeTicket = currentTickets.find((t) => t.id === active.id);
     if (!activeTicket) return;
 
-    // Resolve target column from pre-computed columnTickets (not the mutated store)
+    // Resolve target column
     let targetColumn = columnSlugs.find((col) => col === over.id);
     if (!targetColumn) {
       for (const slug of columnSlugs) {
-        if (columnTickets[slug]?.some(t => t.id === over.id)) {
+        if (currentTickets.some(t => t.status === slug && t.id === over.id)) {
           targetColumn = slug;
           break;
         }
@@ -123,8 +125,8 @@ export function BoardPage() {
     }
     if (!targetColumn) targetColumn = activeTicket.status;
 
-    const colItems = (columnTickets[targetColumn] || [])
-      .filter((t) => t.id !== active.id)
+    const colItems = currentTickets
+      .filter((t) => t.status === targetColumn && t.id !== active.id)
       .sort((a, b) => a.sort_order - b.sort_order);
 
     const overIndex = over.id === targetColumn

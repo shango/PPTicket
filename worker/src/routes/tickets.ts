@@ -67,9 +67,21 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  const priority = body.priority || 'p2';
+  const validPriorities = ['p0', 'p1', 'p2', 'p3'];
+  const priority = body.priority && validPriorities.includes(body.priority) ? body.priority : 'p2';
+  const validTypes = ['bug', 'feature'];
+  if (body.ticket_type && !validTypes.includes(body.ticket_type)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid ticket type.' } }, 400);
+  }
   // Only admins can set a different submitter
-  const submitterId = (body.submitter_id && user.role === 'admin') ? body.submitter_id : user.id;
+  let submitterId = user.id;
+  if (body.submitter_id && user.role === 'admin') {
+    const submitterExists = await c.env.DB.prepare("SELECT id FROM users WHERE id = ? AND role != 'suspended'").bind(body.submitter_id).first();
+    if (!submitterExists) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid submitter.' } }, 400);
+    }
+    submitterId = body.submitter_id;
+  }
 
   // Get the initial column
   const initialCol = await c.env.DB.prepare('SELECT slug FROM columns WHERE is_initial = 1 LIMIT 1').first<{ slug: string }>();
@@ -95,7 +107,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   // Insert tags
   if (body.tags && body.tags.length > 0) {
     const tagInserts = body.tags.slice(0, 5).map(tag =>
-      c.env.DB.prepare('INSERT INTO ticket_tags (ticket_id, tag) VALUES (?, ?)').bind(id, tag.trim()).run()
+      c.env.DB.prepare('INSERT INTO ticket_tags (ticket_id, tag) VALUES (?, ?)').bind(id, tag.trim().slice(0, 50)).run()
     );
     await Promise.all(tagInserts);
   }
@@ -179,16 +191,29 @@ ticketRoutes.patch('/:id', async (c) => {
   const values: any[] = [];
   const now = Math.floor(Date.now() / 1000);
 
-  if (body.title !== undefined) { updates.push('title = ?'); values.push(body.title); }
+  if (body.title !== undefined) {
+    if (!body.title || body.title.length > 200) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Title is required (max 200 chars).' } }, 400);
+    }
+    updates.push('title = ?'); values.push(body.title);
+  }
   if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
   if (body.product_version !== undefined) { updates.push('product_version = ?'); values.push(body.product_version); }
-  if (body.ticket_type !== undefined) { updates.push('ticket_type = ?'); values.push(body.ticket_type); }
+  if (body.ticket_type !== undefined) {
+    if (!['bug', 'feature'].includes(body.ticket_type)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid ticket type.' } }, 400);
+    }
+    updates.push('ticket_type = ?'); values.push(body.ticket_type);
+  }
   if (body.product_id !== undefined) { updates.push('product_id = ?'); values.push(body.product_id); }
 
   // Priority and assignee changes are restricted to dev/admin
   if (body.priority !== undefined) {
     if (isDM) {
       return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change priority.' } }, 403);
+    }
+    if (!['p0', 'p1', 'p2', 'p3'].includes(body.priority)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid priority.' } }, 400);
     }
     updates.push('priority = ?'); values.push(body.priority);
   }
@@ -222,7 +247,7 @@ ticketRoutes.patch('/:id', async (c) => {
   if (body.tags !== undefined) {
     await c.env.DB.prepare('DELETE FROM ticket_tags WHERE ticket_id = ?').bind(id).run();
     const tagInserts = body.tags.slice(0, 5).map(tag =>
-      c.env.DB.prepare('INSERT INTO ticket_tags (ticket_id, tag) VALUES (?, ?)').bind(id, tag.trim()).run()
+      c.env.DB.prepare('INSERT INTO ticket_tags (ticket_id, tag) VALUES (?, ?)').bind(id, tag.trim().slice(0, 50)).run()
     );
     await Promise.all(tagInserts);
   }
@@ -329,7 +354,8 @@ ticketRoutes.post('/:id/attachments/upload-url', requireRole('decision_maker', '
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
 
-  const key = `tickets/${ticketId}/${crypto.randomUUID()}-${filename}`;
+  const safeName = filename.replace(/[/\\:\0]/g, '_').slice(0, 200);
+  const key = `tickets/${ticketId}/${crypto.randomUUID()}-${safeName}`;
 
   // For R2, we return the key and the client uploads via a Worker proxy endpoint
   return c.json({
@@ -352,7 +378,16 @@ ticketRoutes.put('/:id/attachments/upload', requireRole('decision_maker', 'dev',
     return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Invalid upload key.' } }, 403);
   }
 
+  // Enforce upload size limit (10MB)
+  const contentLength = parseInt(c.req.header('content-length') || '0', 10);
+  if (contentLength > 10 * 1024 * 1024) {
+    return c.json({ data: null, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Max file size is 10MB.' } }, 413);
+  }
+
   const body = await c.req.arrayBuffer();
+  if (body.byteLength > 10 * 1024 * 1024) {
+    return c.json({ data: null, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Max file size is 10MB.' } }, 413);
+  }
   await c.env.ATTACHMENTS.put(key, body, {
     httpMetadata: { contentType: c.req.header('content-type') || 'application/octet-stream' },
   });

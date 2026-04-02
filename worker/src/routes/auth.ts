@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { setCookie, deleteCookie } from 'hono/cookie';
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { Env, User } from '../types';
 import { signJWT, verifyJWT } from '../lib/jwt';
 import { hashPassword, verifyPassword } from '../lib/password';
@@ -58,6 +58,10 @@ authRoutes.post('/setup', async (c) => {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, password, first name, and last name are required.' } }, 400);
   }
 
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
+  }
+
   if (password.length < 8) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
   }
@@ -87,7 +91,7 @@ authRoutes.post('/setup', async (c) => {
 // POST /auth/change-password (authenticated — with suspended check)
 authRoutes.post('/change-password', async (c) => {
   const authHeader = c.req.header('Authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : getCookie(c, 'session') || null;
   if (!token) {
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } }, 401);
   }

@@ -30,7 +30,7 @@ export const useStore = create<AppState>((set, get) => ({
   fetchUser: async () => {
     try {
       const user = await api.getMe();
-      set({ user, initialized: true });
+      set({ user, mustChangePassword: !!(user as any).must_change_password, initialized: true });
     } catch {
       set({ user: null, initialized: true });
     }
@@ -58,9 +58,9 @@ export const useStore = create<AppState>((set, get) => ({
   setMustChangePassword: (v) => set({ mustChangePassword: v }),
 
   logout: async () => {
-    clearToken();
     try { await api.logout(); } catch {}
-    set({ user: null });
+    clearToken();
+    set({ user: null, mustChangePassword: false });
     window.location.href = '/login';
   },
 }));

@@ -4,7 +4,7 @@ import { requireRole } from '../middleware/auth';
 import { hashPassword } from '../lib/password';
 import { sendEmail } from '../lib/email';
 
-const USER_FIELDS = 'id, email, name, first_name, last_name, avatar_url, role, created_at, last_login';
+const USER_FIELDS = 'id, email, name, first_name, last_name, avatar_url, role, must_change_password, created_at, last_login';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -26,6 +26,9 @@ userRoutes.post('/', requireRole('admin'), async (c) => {
 
   if (!email || !first_name || !last_name || !password) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, first name, last name, and password are required.' } }, 400);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
   }
   if (password.length < 8) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
@@ -143,8 +146,10 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
   const permanent = c.req.query('permanent') === 'true';
 
   if (permanent) {
-    // Unassign tickets and clear submitter references before deleting
+    // Clean up all references before deleting
     await c.env.DB.prepare('UPDATE tickets SET assignee_id = NULL WHERE assignee_id = ?').bind(id).run();
+    await c.env.DB.prepare('UPDATE tickets SET submitter_id = ? WHERE submitter_id = ?').bind(currentUser.id, id).run();
+    await c.env.DB.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }

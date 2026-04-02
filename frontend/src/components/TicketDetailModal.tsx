@@ -43,7 +43,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   const canComment = user && ['decision_maker', 'dev', 'admin'].includes(user.role);
 
   useEffect(() => {
-    api.getComments(ticket.id).then(setComments);
+    api.getComments(ticket.id).then(setComments).catch(() => {});
     api.getProjects().then(setProjects).catch(() => {});
     api.getColumns().then(setStatusColumns).catch(() => {});
     if (canEdit) {

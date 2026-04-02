@@ -71,7 +71,8 @@ export function AdminPage() {
     try { await api.deleteUser(userId); fetchUsers(); } catch (e: any) { alert(e.message); }
   }
 
-  async function handleRoleChange(userId: string, newRole: string) {
+  async function handleRoleChange(userId: string, currentRole: string, newRole: string) {
+    if (newRole === currentRole) return;
     if (!confirm(`Change this user's role to ${roleLabels[newRole]}?`)) return;
     try { await api.updateRole(userId, newRole); fetchUsers(); } catch (e: any) { alert(e.message); }
   }
@@ -298,7 +299,7 @@ export function AdminPage() {
                   </td>
                   <td className="px-4 py-2.5 text-text-muted">{u.email}</td>
                   <td className="px-4 py-2.5">
-                    <select value={u.role} onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                    <select value={u.role} onChange={(e) => handleRoleChange(u.id, u.role, e.target.value)}
                       className="bg-bg-elevated border border-border rounded-md px-2 py-1 text-[12px]">
                       {roleOptions.map((r) => <option key={r} value={r}>{roleLabels[r]}</option>)}
                     </select>
