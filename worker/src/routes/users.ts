@@ -14,6 +14,12 @@ userRoutes.get('/me', (c) => {
   return c.json({ data: user, error: null });
 });
 
+// GET /api/v1/users/names (all authenticated users — for @mention autocomplete)
+userRoutes.get('/names', async (c) => {
+  const result = await c.env.DB.prepare("SELECT id, name FROM users WHERE role != 'suspended' ORDER BY name ASC").all<{ id: string; name: string }>();
+  return c.json({ data: result.results, error: null });
+});
+
 // GET /api/v1/users (Admin only)
 userRoutes.get('/', requireRole('admin'), async (c) => {
   const result = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users ORDER BY created_at DESC`).all();

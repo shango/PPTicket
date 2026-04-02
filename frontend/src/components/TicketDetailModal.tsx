@@ -70,6 +70,16 @@ function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selec
   );
 }
 
+function renderCommentBody(body: string) {
+  const parts = body.split(/(@[\w][\w\s]*?)(?=\s@|\s*$|[.!?,;:])/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@') && part.length > 1) {
+      return <span key={i} className="text-accent font-medium">{part}</span>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 interface Props {
   ticket: TicketWithMeta;
   onClose: () => void;
@@ -150,6 +160,86 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
   }
 
   const [commentError, setCommentError] = useState('');
+  const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionStartPos, setMentionStartPos] = useState(0);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    api.getUserNames().then(setMentionUsers).catch(() => {});
+  }, []);
+
+  const mentionFiltered = mentionUsers.filter(u =>
+    u.name.toLowerCase().includes(mentionQuery.toLowerCase()) && u.id !== user?.id
+  );
+
+  function handleCommentChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    setNewComment(val);
+
+    const pos = e.target.selectionStart;
+    // Find the last @ before cursor
+    const textBeforeCursor = val.slice(0, pos);
+    const atIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (atIndex >= 0 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === ' ' || textBeforeCursor[atIndex - 1] === '\n')) {
+      const query = textBeforeCursor.slice(atIndex + 1);
+      // Close if there's a double space (user finished typing and moved on)
+      if (!query.includes('\n')) {
+        setMentionQuery(query);
+        setMentionStartPos(atIndex);
+        setMentionOpen(true);
+        setMentionIndex(0);
+        return;
+      }
+    }
+    setMentionOpen(false);
+  }
+
+  function insertMention(name: string) {
+    const before = newComment.slice(0, mentionStartPos);
+    const after = newComment.slice(commentRef.current?.selectionStart || mentionStartPos + mentionQuery.length + 1);
+    const updated = `${before}@${name} ${after}`;
+    setNewComment(updated);
+    setMentionOpen(false);
+    // Focus back on textarea
+    setTimeout(() => {
+      const pos = mentionStartPos + name.length + 2; // @Name + space
+      commentRef.current?.focus();
+      commentRef.current?.setSelectionRange(pos, pos);
+    }, 0);
+  }
+
+  function handleCommentKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen && mentionFiltered.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex(i => Math.min(i + 1, mentionFiltered.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        insertMention(mentionFiltered[mentionIndex].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !mentionOpen) {
+      e.preventDefault();
+      handleAddComment();
+    }
+  }
 
   async function handleAddComment() {
     if (!newComment.trim()) return;
@@ -412,7 +502,7 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                       {new Date(comment.created_at * 1000).toLocaleString()}
                     </span>
                   </div>
-                  <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{comment.body}</p>
+                  <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{renderCommentBody(comment.body)}</p>
                 </div>
               ))}
               {comments.length === 0 && (
@@ -427,18 +517,38 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
                     <p className="text-danger text-[11px]">{commentError}</p>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <input
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment()}
-                    placeholder="Write a comment..."
-                    className={`flex-1 ${fieldInput}`}
-                  />
-                  <button onClick={handleAddComment}
-                    className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover">
-                    Send
-                  </button>
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <textarea
+                      ref={commentRef}
+                      value={newComment}
+                      onChange={handleCommentChange}
+                      onKeyDown={handleCommentKeyDown}
+                      placeholder="Write a comment... Use @ to mention someone"
+                      rows={2}
+                      className={`flex-1 ${fieldInput} resize-none`}
+                    />
+                    <button onClick={handleAddComment}
+                      className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover self-end">
+                      Send
+                    </button>
+                  </div>
+                  {mentionOpen && mentionFiltered.length > 0 && (
+                    <div className="absolute bottom-full mb-1 left-0 w-64 bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto z-10">
+                      {mentionFiltered.slice(0, 8).map((u, i) => (
+                        <button key={u.id} type="button"
+                          onMouseDown={(e) => { e.preventDefault(); insertMention(u.name); }}
+                          className={`w-full text-left px-2.5 py-1.5 text-[13px] flex items-center gap-2 ${
+                            i === mentionIndex ? 'bg-accent/10 text-accent' : 'text-text-secondary hover:bg-bg-elevated'
+                          }`}>
+                          <div className="w-5 h-5 rounded-full bg-accent/15 flex items-center justify-center text-[9px] text-accent font-semibold shrink-0">
+                            {u.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                          </div>
+                          {u.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

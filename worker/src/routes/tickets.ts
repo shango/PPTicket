@@ -362,7 +362,7 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
     'INSERT INTO comments (id, ticket_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
   ).bind(id, ticketId, user.id, body, now).run();
 
-  // Notify all assignees + project default owner (excluding the comment author)
+  // Notify all assignees + project default owner + @mentioned users (excluding the comment author)
   const toEmails = new Set<string>();
   const ticketAssignees = await c.env.DB.prepare(
     'SELECT ta.user_id, u.email FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
@@ -377,6 +377,21 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
       if (owner) toEmails.add(owner.email);
     }
   }
+
+  // Parse @mentions from comment body and add to recipients
+  const mentionMatches = body.match(/@[\w][\w\s]*/g);
+  if (mentionMatches) {
+    const mentionNames = mentionMatches.map(m => m.slice(1).trim()).filter(Boolean);
+    for (const name of mentionNames) {
+      const mentioned = await c.env.DB.prepare(
+        "SELECT id, email FROM users WHERE name = ? AND role != 'suspended'"
+      ).bind(name).first<{ id: string; email: string }>();
+      if (mentioned && mentioned.id !== user.id) {
+        toEmails.add(mentioned.email);
+      }
+    }
+  }
+
   if (toEmails.size > 0) {
     const email = newCommentEmail(ticket.ticket_number, ticket.title, user.name, body, c.env.FRONTEND_URL);
     c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [...toEmails], ...email }));

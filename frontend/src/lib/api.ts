@@ -53,6 +53,7 @@ export const api = {
   // Users
   getMe: () => request<User>('/api/v1/users/me'),
   getUsers: () => request<User[]>('/api/v1/users'),
+  getUserNames: () => request<{ id: string; name: string }[]>('/api/v1/users/names'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id: string, data: { first_name?: string; last_name?: string; email?: string; role?: string }) =>
