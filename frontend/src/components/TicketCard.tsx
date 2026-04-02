@@ -86,16 +86,9 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
         </div>
       )}
 
-      {/* Footer: submitter, date, version, assignee */}
+      {/* Footer */}
       <div className="flex items-center justify-between text-[11px] text-text-muted">
-        <div className="flex items-center gap-2">
-          {ticket.submitter_name && (
-            <span>{ticket.submitter_name}</span>
-          )}
-          <span>{new Date(ticket.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-          {ticket.product_version && (
-            <span className="font-mono">v{ticket.product_version}</span>
-          )}
+        <div>
           {ticket.edc && (
             <span className={isPastEdc ? 'text-danger' : ''}>
               EDC {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -103,9 +96,9 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
           )}
         </div>
         {ticket.assignee_name && (
-          <span className="text-[11px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">
+          <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] text-accent font-semibold">
             {ticket.assignee_name.split(' ').map(n => n[0]).join('').toUpperCase()}
-          </span>
+          </div>
         )}
       </div>
     </div>
