@@ -26,10 +26,16 @@ export function AdminPage() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
   const [projectError, setProjectError] = useState('');
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editProjectForm, setEditProjectForm] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
+  const [editProjectError, setEditProjectError] = useState('');
   const [columns, setColumns] = useState<Column[]>([]);
   const [showCreateColumn, setShowCreateColumn] = useState(false);
   const [newColumn, setNewColumn] = useState({ name: '', color: '#5f6270' });
   const [columnError, setColumnError] = useState('');
+  const [editingColumn, setEditingColumn] = useState<Column | null>(null);
+  const [editColumnForm, setEditColumnForm] = useState({ name: '', color: '#5f6270' });
+  const [editColumnError, setEditColumnError] = useState('');
 
   async function fetchUsers() {
     try { setUsers(await api.getUsers()); } catch (e: any) { setError(e.message); } finally { setLoading(false); }
@@ -86,6 +92,38 @@ export function AdminPage() {
   async function handleDeleteProject(id: string) {
     if (!confirm('Delete this product?')) return;
     try { await api.deleteProject(id); fetchProjects(); } catch (e: any) { alert(e.message); }
+  }
+
+  function openEditProject(p: Project) {
+    setEditingProject(p);
+    setEditProjectForm({ name: p.name, abbreviation: p.abbreviation, color: p.color, default_owner_id: p.default_owner_id || '' });
+    setEditProjectError('');
+  }
+  async function handleSaveProject(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingProject) return;
+    setEditProjectError('');
+    try {
+      await api.updateProject(editingProject.id, { ...editProjectForm, default_owner_id: editProjectForm.default_owner_id || null });
+      setEditingProject(null);
+      fetchProjects();
+    } catch (e: any) { setEditProjectError(e.message); }
+  }
+
+  function openEditColumn(col: Column) {
+    setEditingColumn(col);
+    setEditColumnForm({ name: col.name, color: col.color });
+    setEditColumnError('');
+  }
+  async function handleSaveColumn(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingColumn) return;
+    setEditColumnError('');
+    try {
+      await api.updateColumn(editingColumn.id, editColumnForm);
+      setEditingColumn(null);
+      fetchColumns();
+    } catch (e: any) { setEditColumnError(e.message); }
   }
 
   async function handleCreateColumn(e: React.FormEvent) {
@@ -374,7 +412,12 @@ export function AdminPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2.5"><button onClick={() => handleDeleteProject(p.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button></td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openEditProject(p)} className="text-[11px] text-text-muted hover:text-text-primary font-medium">Edit</button>
+                      <button onClick={() => handleDeleteProject(p.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {projects.length === 0 && (
@@ -456,9 +499,12 @@ export function AdminPage() {
                       className="accent-success" />
                   </td>
                   <td className="px-4 py-2.5">
-                    {!col.is_initial && (
-                      <button onClick={() => handleDeleteColumn(col.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openEditColumn(col)} className="text-[11px] text-text-muted hover:text-text-primary font-medium">Edit</button>
+                      {!col.is_initial && (
+                        <button onClick={() => handleDeleteColumn(col.id)} className="text-[11px] text-danger/60 hover:text-danger font-medium">Delete</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -515,6 +561,91 @@ export function AdminPage() {
               <div className="flex gap-2 pt-2">
                 <button type="submit" className="flex-1 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover">Save</button>
                 <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 bg-bg-elevated border border-border text-text-secondary rounded-lg text-sm hover:text-text-primary hover:bg-bg-hover">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setEditingProject(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-bg-surface border border-border rounded-xl p-6 w-full max-w-md shadow-2xl shadow-black/40" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold">Edit Project</h2>
+              <button onClick={() => setEditingProject(null)} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-bg-hover">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {editProjectError && (
+              <div className="bg-danger/8 border border-danger/20 rounded-lg p-2.5 mb-4">
+                <p className="text-danger text-xs">{editProjectError}</p>
+              </div>
+            )}
+            <form onSubmit={handleSaveProject} className="space-y-3">
+              <div className="grid grid-cols-[1fr_80px] gap-3">
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Name</label>
+                  <input value={editProjectForm.name} onChange={(e) => setEditProjectForm({ ...editProjectForm, name: e.target.value })} required className={fieldInput + ' w-full'} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Color</label>
+                  <input type="color" value={editProjectForm.color} onChange={(e) => setEditProjectForm({ ...editProjectForm, color: e.target.value })} className="h-10 w-full bg-bg-elevated border border-border rounded-lg cursor-pointer" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Abbreviation</label>
+                <input value={editProjectForm.abbreviation} onChange={(e) => setEditProjectForm({ ...editProjectForm, abbreviation: e.target.value })} required maxLength={5} className={fieldInput + ' w-full'} />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Default Owner</label>
+                <select value={editProjectForm.default_owner_id} onChange={(e) => setEditProjectForm({ ...editProjectForm, default_owner_id: e.target.value })} className={fieldInput + ' w-full'}>
+                  <option value="">None</option>
+                  {activeUsers.filter(u => ['dev', 'admin'].includes(u.role)).map(u => (
+                    <option key={u.id} value={u.id}>{u.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover">Save</button>
+                <button type="button" onClick={() => setEditingProject(null)} className="px-4 py-2 bg-bg-elevated border border-border text-text-secondary rounded-lg text-sm hover:text-text-primary hover:bg-bg-hover">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Column Modal */}
+      {editingColumn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setEditingColumn(null)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-bg-surface border border-border rounded-xl p-6 w-full max-w-sm shadow-2xl shadow-black/40" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold">Edit Column</h2>
+              <button onClick={() => setEditingColumn(null)} className="text-text-muted hover:text-text-primary p-1 rounded hover:bg-bg-hover">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            {editColumnError && (
+              <div className="bg-danger/8 border border-danger/20 rounded-lg p-2.5 mb-4">
+                <p className="text-danger text-xs">{editColumnError}</p>
+              </div>
+            )}
+            <form onSubmit={handleSaveColumn} className="space-y-3">
+              <div className="grid grid-cols-[1fr_60px] gap-3">
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Name</label>
+                  <input value={editColumnForm.name} onChange={(e) => setEditColumnForm({ ...editColumnForm, name: e.target.value })} required className={fieldInput + ' w-full'} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Color</label>
+                  <input type="color" value={editColumnForm.color} onChange={(e) => setEditColumnForm({ ...editColumnForm, color: e.target.value })} className="h-10 w-full bg-bg-elevated border border-border rounded-lg cursor-pointer" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover">Save</button>
+                <button type="button" onClick={() => setEditingColumn(null)} className="px-4 py-2 bg-bg-elevated border border-border text-text-secondary rounded-lg text-sm hover:text-text-primary hover:bg-bg-hover">Cancel</button>
               </div>
             </form>
           </div>

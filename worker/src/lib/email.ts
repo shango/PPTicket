@@ -17,7 +17,7 @@ export async function sendEmail(apiKey: string, params: EmailParams): Promise<vo
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'PDO Kanban <noreply@pdoexperts.fb.com>',
+        from: 'PDO Kanban <noreply@pre-pro.cc>',
         to: params.to,
         subject: params.subject,
         html: params.html,

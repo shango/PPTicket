@@ -100,11 +100,19 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     await Promise.all(tagInserts);
   }
 
-  // Notify devs and admins
-  const recipients = await c.env.DB.prepare("SELECT email FROM users WHERE role IN ('admin', 'dev')").all<{ email: string }>();
-  if (recipients.results.length > 0) {
+  // Notify project default owner + all admins
+  const adminEmails = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin'").all<{ email: string }>();
+  const toEmails = new Set(adminEmails.results.map(r => r.email));
+
+  // Add the project's default owner if assigned
+  if (assigneeId) {
+    const ownerEmail = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(assigneeId).first<{ email: string }>();
+    if (ownerEmail) toEmails.add(ownerEmail.email);
+  }
+
+  if (toEmails.size > 0) {
     const email = newTicketEmail(ticketNumber, body.title, priority, user.name, c.env.FRONTEND_URL);
-    c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email }));
+    c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [...toEmails], ...email }));
   }
 
   const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
