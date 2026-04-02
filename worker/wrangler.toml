@@ -13,11 +13,8 @@ binding = "ATTACHMENTS"
 bucket_name = "pdo-kanban-attachments"
 
 [vars]
-GOOGLE_CLIENT_ID = "501487474378-qgftc45uh4biadrqdm3idu0lj62stic0.apps.googleusercontent.com"
-ALLOWED_DOMAIN = "pdoexperts.fb.com"
 FRONTEND_URL = "https://pdo-kanban.pages.dev"
 
 # Secrets (set via `wrangler secret put`):
-# GOOGLE_CLIENT_SECRET
 # JWT_SECRET
 # EMAIL_API_KEY

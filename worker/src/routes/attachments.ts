@@ -18,10 +18,9 @@ attachmentRoutes.delete('/:id', requireRole('decision_maker', 'dev', 'admin'), a
     return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'You can only delete your own attachments.' } }, 403);
   }
 
-  // Delete from R2
+  // Delete from R2 — url stores the R2 key directly
   try {
-    const key = new URL(attachment.url).pathname.slice(1);
-    await c.env.ATTACHMENTS.delete(key);
+    await c.env.ATTACHMENTS.delete(attachment.url);
   } catch (e) {
     console.error('R2 delete failed:', e);
   }

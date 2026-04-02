@@ -1,6 +1,10 @@
 import { Hono } from 'hono';
 import { Env, Role } from '../types';
 import { requireRole } from '../middleware/auth';
+import { hashPassword } from '../lib/password';
+import { sendEmail } from '../lib/email';
+
+const USER_FIELDS = 'id, email, name, avatar_url, role, created_at, last_login';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -12,8 +16,39 @@ userRoutes.get('/me', (c) => {
 
 // GET /api/v1/users (Admin only)
 userRoutes.get('/', requireRole('admin'), async (c) => {
-  const result = await c.env.DB.prepare('SELECT * FROM users ORDER BY created_at DESC').all();
+  const result = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users ORDER BY created_at DESC`).all();
   return c.json({ data: result.results, error: null });
+});
+
+// POST /api/v1/users (Admin only — create user)
+userRoutes.post('/', requireRole('admin'), async (c) => {
+  const { email, name, password, role } = await c.req.json<{ email: string; name: string; password: string; role?: Role }>();
+
+  if (!email || !name || !password) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, name, and password are required.' } }, 400);
+  }
+  if (password.length < 8) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
+  }
+
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first();
+  if (existing) {
+    return c.json({ data: null, error: { code: 'CONFLICT', message: 'A user with this email already exists.' } }, 409);
+  }
+
+  const validRoles: Role[] = ['viewer', 'decision_maker', 'dev', 'admin'];
+  const userRole = role && validRoles.includes(role) ? role : 'viewer';
+
+  const id = crypto.randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  const passwordHash = await hashPassword(password);
+
+  await c.env.DB.prepare(
+    'INSERT INTO users (id, email, name, avatar_url, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)'
+  ).bind(id, email.toLowerCase().trim(), name, null, userRole, passwordHash, now).run();
+
+  const user = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
+  return c.json({ data: user, error: null }, 201);
 });
 
 // PATCH /api/v1/users/:id/role (Admin only)
@@ -38,7 +73,7 @@ userRoutes.patch('/:id/role', requireRole('admin'), async (c) => {
   }
 
   await c.env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
-  const updated = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+  const updated = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
   return c.json({ data: updated, error: null });
 });
 

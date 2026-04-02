@@ -31,7 +31,7 @@ function base64urlDecode(str: string): Uint8Array {
   return bytes;
 }
 
-export async function signJWT(payload: Omit<JWTPayload, 'iat' | 'exp'>, secret: string, ttlSeconds = 28800): Promise<string> {
+export async function signJWT(payload: Omit<JWTPayload, 'iat' | 'exp'>, secret: string, ttlSeconds = 2592000): Promise<string> {
   const key = await getKey(secret);
   const now = Math.floor(Date.now() / 1000);
 
