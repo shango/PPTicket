@@ -9,7 +9,7 @@ import { AdminPage } from './pages/AdminPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
-function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
+function ProtectedRoute({ children, allowedRoles, skipPasswordCheck }: { children: React.ReactNode; allowedRoles?: string[]; skipPasswordCheck?: boolean }) {
   const user = useStore((s) => s.user);
   const initialized = useStore((s) => s.initialized);
   const mustChangePassword = useStore((s) => s.mustChangePassword);
@@ -22,8 +22,8 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     );
   }
   if (!user) return <Navigate to="/login" replace />;
-  // Force password change before accessing any page
-  if (mustChangePassword) return <Navigate to="/change-password" replace />;
+  // Force password change before accessing any page (except the change-password page itself)
+  if (mustChangePassword && !skipPasswordCheck) return <Navigate to="/change-password" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -59,7 +59,7 @@ export default function App() {
         <Route
           path="/change-password"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute skipPasswordCheck>
               <ChangePasswordPage />
             </ProtectedRoute>
           }
