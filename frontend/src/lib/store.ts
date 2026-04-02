@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { api, clearToken, type User, type TicketWithMeta } from './api';
+import { api, type User, type TicketWithMeta } from './api';
 
 interface AppState {
   user: User | null;
+  mustChangePassword: boolean;
   tickets: TicketWithMeta[];
   loading: boolean;
   initialized: boolean;
@@ -12,6 +13,7 @@ interface AppState {
   fetchTickets: (params?: Record<string, string>) => Promise<void>;
   setTickets: (tickets: TicketWithMeta[]) => void;
   optimisticMoveTicket: (ticketId: string, newStatus: string, newSortOrder: number) => void;
+  setMustChangePassword: (v: boolean) => void;
   logout: () => Promise<void>;
 }
 
@@ -19,6 +21,7 @@ export type { AppState };
 
 export const useStore = create<AppState>((set, get) => ({
   user: null,
+  mustChangePassword: false,
   tickets: [],
   loading: false,
   initialized: false,
@@ -52,8 +55,10 @@ export const useStore = create<AppState>((set, get) => ({
     set({ tickets });
   },
 
+  setMustChangePassword: (v) => set({ mustChangePassword: v }),
+
   logout: async () => {
-    clearToken();
+    try { await api.logout(); } catch {}
     set({ user: null });
     window.location.href = '/login';
   },

@@ -2,16 +2,17 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useStore } from './lib/store';
 import { LoginPage } from './pages/LoginPage';
-import { AuthErrorPage } from './pages/AuthErrorPage';
+import { SetupPage } from './pages/SetupPage';
 import { BoardPage } from './pages/BoardPage';
 import { SubmitPage } from './pages/SubmitPage';
 import { AdminPage } from './pages/AdminPage';
-import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: string[] }) {
   const user = useStore((s) => s.user);
   const initialized = useStore((s) => s.initialized);
+  const mustChangePassword = useStore((s) => s.mustChangePassword);
 
   if (!initialized) {
     return (
@@ -21,6 +22,8 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode;
     );
   }
   if (!user) return <Navigate to="/login" replace />;
+  // Force password change before accessing any page
+  if (mustChangePassword) return <Navigate to="/change-password" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -52,8 +55,15 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/auth/error" element={<AuthErrorPage />} />
-        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/setup" element={<SetupPage />} />
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute>
+              <ChangePasswordPage />
+            </ProtectedRoute>
+          }
+        />
         <Route element={<Layout />}>
           <Route
             path="/board"

@@ -1,29 +1,15 @@
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-export function getToken(): string | null {
-  return localStorage.getItem('session_token');
-}
-
-export function setToken(token: string) {
-  localStorage.setItem('session_token', token);
-}
-
-export function clearToken() {
-  localStorage.removeItem('session_token');
-}
-
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = getToken();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
     headers: { ...headers, ...options?.headers },
     ...options,
   });
 
   if (res.status === 401) {
-    window.location.href = '/login';
     throw new Error('Unauthorized');
   }
 
@@ -38,11 +24,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   // Auth
+  login: (email: string, password: string) =>
+    request<{ must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  setup: (email: string, password: string, name: string) =>
+    request<{ user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify({ email, password, name }) }),
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Users
   getMe: () => request<User>('/api/v1/users/me'),
   getUsers: () => request<User[]>('/api/v1/users'),
+  createUser: (data: { email: string; name: string; password: string; role?: string }) =>
+    request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
   updateRole: (id: string, role: string) =>
     request<User>(`/api/v1/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   suspendUser: (id: string) =>
@@ -82,6 +76,26 @@ export const api = {
     request<Attachment>(`/api/v1/tickets/${ticketId}/attachments`, { method: 'POST', body: JSON.stringify(data) }),
   deleteAttachment: (id: string) =>
     request(`/api/v1/attachments/${id}`, { method: 'DELETE' }),
+
+  // Products
+  getProducts: () => request<Product[]>('/api/v1/products'),
+  createProduct: (data: { name: string; abbreviation: string; color?: string }) =>
+    request<Product>('/api/v1/products', { method: 'POST', body: JSON.stringify(data) }),
+  updateProduct: (id: string, data: { name?: string; abbreviation?: string; color?: string }) =>
+    request<Product>(`/api/v1/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteProduct: (id: string) =>
+    request(`/api/v1/products/${id}`, { method: 'DELETE' }),
+
+  // Columns
+  getColumns: () => request<Column[]>('/api/v1/columns'),
+  createColumn: (data: { name: string; color?: string }) =>
+    request<Column>('/api/v1/columns', { method: 'POST', body: JSON.stringify(data) }),
+  updateColumn: (id: string, data: Partial<{ name: string; color: string; sort_order: number; is_initial: boolean; is_terminal: boolean }>) =>
+    request<Column>(`/api/v1/columns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  reorderColumns: (order: { id: string; sort_order: number }[]) =>
+    request<Column[]>('/api/v1/columns/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
+  deleteColumn: (id: string) =>
+    request(`/api/v1/columns/${id}`, { method: 'DELETE' }),
 };
 
 // Types
@@ -104,7 +118,14 @@ export interface TicketWithMeta {
   priority: string;
   assignee_id: string | null;
   submitter_id: string;
-  due_date: number | null;
+  edc: number | null;
+  product_version: string | null;
+  ticket_type: 'bug' | 'feature';
+  product_id: string | null;
+  product_name: string | null;
+  product_abbreviation: string | null;
+  product_color: string | null;
+  submitter_name: string | null;
   sort_order: number;
   created_at: number;
   updated_at: number;
@@ -144,7 +165,11 @@ export interface CreateTicketPayload {
   description: string;
   priority?: string;
   tags?: string[];
-  due_date?: number | null;
+  edc?: number | null;
+  product_version?: string | null;
+  ticket_type?: 'bug' | 'feature';
+  product_id?: string | null;
+  submitter_id?: string | null;
 }
 
 export interface UpdateTicketPayload {
@@ -152,6 +177,28 @@ export interface UpdateTicketPayload {
   description: string;
   priority: string;
   assignee_id: string | null;
-  due_date: number | null;
+  edc: number | null;
+  product_version: string | null;
+  ticket_type: 'bug' | 'feature';
+  product_id: string | null;
   tags: string[];
+}
+
+export interface Column {
+  id: string;
+  name: string;
+  slug: string;
+  sort_order: number;
+  color: string;
+  is_initial: number;
+  is_terminal: number;
+  created_at: number;
+}
+
+export interface Product {
+  id: string;
+  name: string;
+  abbreviation: string;
+  color: string;
+  created_at: number;
 }

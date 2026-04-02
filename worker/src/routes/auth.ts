@@ -1,149 +1,133 @@
 import { Hono } from 'hono';
-import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
+import { setCookie, deleteCookie } from 'hono/cookie';
 import { Env, User } from '../types';
-import { signJWT } from '../lib/jwt';
-import { sendEmail, newUserEmail } from '../lib/email';
+import { signJWT, verifyJWT } from '../lib/jwt';
+import { hashPassword, verifyPassword } from '../lib/password';
+
+function getCookieOptions(c: any) {
+  const isLocal = c.env.FRONTEND_URL?.includes('localhost');
+  return {
+    httpOnly: true,
+    secure: !isLocal,
+    sameSite: (isLocal ? 'Lax' : 'Strict') as 'Lax' | 'Strict',
+    path: '/',
+    maxAge: 2592000, // 30 days
+  };
+}
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
 
-authRoutes.get('/google', (c) => {
-  const state = crypto.randomUUID();
-  setCookie(c, 'oauth_state', state, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 300,
-  });
+// POST /auth/login
+authRoutes.post('/login', async (c) => {
+  const { email, password } = await c.req.json<{ email: string; password: string }>();
 
-  const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
-  const params = new URLSearchParams({
-    client_id: c.env.GOOGLE_CLIENT_ID,
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    scope: 'openid email profile',
-    access_type: 'online',
-    prompt: 'select_account',
-    state,
-  });
-  return c.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
-});
-
-authRoutes.get('/google/callback', async (c) => {
-  const code = c.req.query('code');
-  if (!code) {
-    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=no_code`);
+  if (!email || !password) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email and password are required.' } }, 400);
   }
 
-  // Verify OAuth state to prevent CSRF
-  const cookieState = getCookie(c, 'oauth_state');
-  const queryState = c.req.query('state');
-  deleteCookie(c, 'oauth_state', { path: '/' });
-  if (!cookieState || cookieState !== queryState) {
-    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=state_mismatch`);
+  const user = await c.env.DB.prepare('SELECT id, email, name, role, password_hash, must_change_password FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first<User & { password_hash: string; must_change_password: number }>();
+
+  if (!user || !user.password_hash) {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Invalid email or password.' } }, 401);
   }
 
-  const redirectUri = `${new URL(c.req.url).origin}/auth/google/callback`;
-
-  // Exchange code for tokens
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: c.env.GOOGLE_CLIENT_ID,
-      client_secret: c.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-    }),
-  });
-
-  if (!tokenRes.ok) {
-    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=token_exchange`);
+  if (user.role === ('suspended' as any)) {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Your account has been suspended.' } }, 401);
   }
 
-  const tokens = await tokenRes.json<{ access_token: string }>();
-
-  // Get user info
-  const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${tokens.access_token}` },
-  });
-
-  if (!userInfoRes.ok) {
-    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=userinfo`);
+  const valid = await verifyPassword(password, user.password_hash);
+  if (!valid) {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Invalid email or password.' } }, 401);
   }
 
-  const googleUser = await userInfoRes.json<{ email: string; name: string; picture: string }>();
-
-  // Domain check
-  const domain = googleUser.email.split('@')[1];
-  if (domain !== c.env.ALLOWED_DOMAIN) {
-    return c.redirect(`${c.env.FRONTEND_URL}/auth/error?reason=domain`);
-  }
-
-  // Check if user exists
-  let user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(googleUser.email).first<User>();
+  // Update last login
   const now = Math.floor(Date.now() / 1000);
-
-  if (!user) {
-    // Create new user with viewer role
-    const id = crypto.randomUUID();
-    await c.env.DB.prepare(
-      'INSERT INTO users (id, email, name, avatar_url, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, googleUser.email, googleUser.name, googleUser.picture || null, 'viewer', now, now).run();
-
-    user = { id, email: googleUser.email, name: googleUser.name, avatar_url: googleUser.picture || null, role: 'viewer', created_at: now, last_login: now };
-
-    // Notify admins and devs
-    const recipients = await c.env.DB.prepare("SELECT email FROM users WHERE role IN ('admin', 'dev')").all<{ email: string }>();
-    if (recipients.results.length > 0) {
-      const email = newUserEmail(googleUser.name, googleUser.email, c.env.FRONTEND_URL);
-      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: recipients.results.map(r => r.email), ...email }));
-    }
-  } else {
-    // Update last login
-    await c.env.DB.prepare('UPDATE users SET last_login = ?, name = ?, avatar_url = ? WHERE id = ?')
-      .bind(now, googleUser.name, googleUser.picture || null, user.id).run();
-    user.last_login = now;
-  }
-
-  // Issue JWT
-  const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
-
-  // Redirect to frontend with token — frontend will store it and call /auth/session
-  const landingPages: Record<string, string> = {
-    viewer: '/board',
-    decision_maker: '/submit',
-    dev: '/board',
-    admin: '/board',
-  };
-
-  const landing = landingPages[user.role] || '/board';
-  return c.redirect(`${c.env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(landing)}`);
-});
-
-// TEMPORARY: Dev login bypass — remove before production
-authRoutes.get('/dev-login', async (c) => {
-  const now = Math.floor(Date.now() / 1000);
-  const email = 'dev@pdoexperts.fb.com';
-
-  let user = await c.env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<User>();
-
-  if (!user) {
-    const id = crypto.randomUUID();
-    await c.env.DB.prepare(
-      'INSERT INTO users (id, email, name, avatar_url, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(id, email, 'Dev User', null, 'admin', now, now).run();
-    user = { id, email, name: 'Dev User', avatar_url: null, role: 'admin', created_at: now, last_login: now };
-  } else {
-    await c.env.DB.prepare('UPDATE users SET last_login = ? WHERE id = ?').bind(now, user.id).run();
-  }
+  await c.env.DB.prepare('UPDATE users SET last_login = ? WHERE id = ?').bind(now, user.id).run();
 
   const token = await signJWT({ sub: user.id, email: user.email, role: user.role }, c.env.JWT_SECRET);
+  setCookie(c, 'session', token, getCookieOptions(c));
 
-  return c.redirect(`${c.env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent('/board')}`);
+  return c.json({ data: { must_change_password: !!user.must_change_password, user: { id: user.id, email: user.email, name: user.name, role: user.role } }, error: null });
 });
 
+// POST /auth/setup — Initial admin setup (atomic — only works when no users exist)
+authRoutes.post('/setup', async (c) => {
+  const { email, password, name } = await c.req.json<{ email: string; password: string; name: string }>();
+
+  if (!email || !password || !name) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, password, and name are required.' } }, 400);
+  }
+
+  if (password.length < 8) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
+  }
+
+  const id = crypto.randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  const passwordHash = await hashPassword(password);
+
+  // Atomic insert — only succeeds if no users exist (prevents TOCTOU race)
+  const result = await c.env.DB.prepare(
+    `INSERT INTO users (id, email, name, avatar_url, role, password_hash, created_at, last_login)
+     SELECT ?, ?, ?, NULL, 'admin', ?, ?, ?
+     WHERE NOT EXISTS (SELECT 1 FROM users)`
+  ).bind(id, email.toLowerCase().trim(), name, passwordHash, now, now).run();
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Setup already completed.' } }, 403);
+  }
+
+  const token = await signJWT({ sub: id, email, role: 'admin' }, c.env.JWT_SECRET);
+  setCookie(c, 'session', token, getCookieOptions(c));
+
+  return c.json({ data: { user: { id, email, name, role: 'admin' } }, error: null });
+});
+
+// POST /auth/change-password (authenticated — with suspended check)
+authRoutes.post('/change-password', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } }, 401);
+  }
+
+  let payload;
+  try {
+    payload = await verifyJWT(token, c.env.JWT_SECRET);
+  } catch {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired session.' } }, 401);
+  }
+
+  const user = await c.env.DB.prepare('SELECT password_hash, role FROM users WHERE id = ?').bind(payload.sub).first<{ password_hash: string; role: string }>();
+  if (!user || !user.password_hash) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'User not found.' } }, 404);
+  }
+
+  if (user.role === 'suspended') {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Account suspended.' } }, 401);
+  }
+
+  const { current_password, new_password } = await c.req.json<{ current_password: string; new_password: string }>();
+
+  if (!current_password || !new_password) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Current and new passwords are required.' } }, 400);
+  }
+  if (new_password.length < 8) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'New password must be at least 8 characters.' } }, 400);
+  }
+
+  const valid = await verifyPassword(current_password, user.password_hash);
+  if (!valid) {
+    return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Current password is incorrect.' } }, 401);
+  }
+
+  const newHash = await hashPassword(new_password);
+  await c.env.DB.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').bind(newHash, payload.sub).run();
+
+  return c.json({ data: { message: 'Password changed successfully.' }, error: null });
+});
+
+// POST /auth/logout
 authRoutes.post('/logout', (c) => {
   deleteCookie(c, 'session', { path: '/' });
   return c.json({ data: { message: 'Logged out' }, error: null });
