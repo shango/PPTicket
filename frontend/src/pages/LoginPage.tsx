@@ -4,8 +4,11 @@ import { api, setToken } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function LoginPage() {
+  const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,14 +22,21 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await api.login(email, password);
-      setToken(result.token);
-      await fetchUser();
-      if (result.must_change_password) {
-        setMustChangePassword(true);
-        navigate('/change-password', { replace: true });
-      } else {
+      if (mode === 'register') {
+        const result = await api.register({ email, password, first_name: firstName, last_name: lastName });
+        setToken(result.token);
+        await fetchUser();
         navigate('/board', { replace: true });
+      } else {
+        const result = await api.login(email, password);
+        setToken(result.token);
+        await fetchUser();
+        if (result.must_change_password) {
+          setMustChangePassword(true);
+          navigate('/change-password', { replace: true });
+        } else {
+          navigate('/board', { replace: true });
+        }
       }
     } catch (e: any) {
       setError(e.message);
@@ -37,7 +47,6 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bg-base relative overflow-hidden">
-      {/* Subtle radial glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-accent/[0.03] rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-[360px] relative z-10">
@@ -51,7 +60,31 @@ export function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight mb-1">PDO Kanban</h1>
-          <p className="text-text-muted text-sm">Sign in to your workspace</p>
+          <p className="text-text-muted text-sm">
+            {mode === 'login' ? 'Sign in to your workspace' : 'Create your account'}
+          </p>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex bg-bg-elevated rounded-lg p-0.5 mb-6 border border-border">
+          <button
+            type="button"
+            onClick={() => { setMode('login'); setError(''); }}
+            className={`flex-1 text-[13px] font-medium py-1.5 rounded-md transition-all ${
+              mode === 'login' ? 'bg-bg-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+            }`}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('register'); setError(''); }}
+            className={`flex-1 text-[13px] font-medium py-1.5 rounded-md transition-all ${
+              mode === 'register' ? 'bg-bg-surface text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+            }`}
+          >
+            Register
+          </button>
         </div>
 
         {error && (
@@ -61,6 +94,32 @@ export function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'register' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">First Name</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required={mode === 'register'}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
+                  placeholder="Shannon"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Last Name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required={mode === 'register'}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
+                  placeholder="Gold"
+                />
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-xs text-text-secondary block mb-1.5 font-medium">Email</label>
             <input
@@ -80,7 +139,9 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={mode === 'register' ? 8 : undefined}
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 pr-10 text-sm"
+                placeholder={mode === 'register' ? 'Min 8 characters' : undefined}
               />
               <button
                 type="button"
@@ -107,7 +168,7 @@ export function LoginPage() {
             disabled={loading}
             className="w-full px-4 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-accent-hover disabled:opacity-50 transition-colors shadow-lg shadow-accent/10"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (mode === 'register' ? 'Creating account...' : 'Signing in...') : (mode === 'register' ? 'Create Account' : 'Sign In')}
           </button>
         </form>
       </div>

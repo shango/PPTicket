@@ -48,6 +48,8 @@ export const api = {
     request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
   changePassword: (current_password: string, new_password: string) =>
     request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
+  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+    request<{ token: string; user: User }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Users
