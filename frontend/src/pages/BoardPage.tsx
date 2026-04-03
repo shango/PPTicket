@@ -5,10 +5,12 @@ import {
   type DragOverEvent,
   type DragStartEvent,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
+  type CollisionDetection,
 } from '@dnd-kit/core';
 import { useStore } from '../lib/store';
 import { api, type TicketWithMeta, type Project, type Column } from '../lib/api';
@@ -32,6 +34,14 @@ export function BoardPage() {
   const [myTickets, setMyTickets] = useState(false);
 
   const canDrag = user ? ['dev', 'admin'].includes(user.role) : false;
+
+  const collisionDetection: CollisionDetection = (args) => {
+    // Try pointerWithin first — works for empty droppable columns
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+    // Fall back to rectIntersection for sorting within columns
+    return rectIntersection(args);
+  };
   const columnSlugs = useMemo(() => columns.map(c => c.slug), [columns]);
 
   const sensors = useSensors(
@@ -250,7 +260,7 @@ export function BoardPage() {
       <div className="flex-1 overflow-x-auto px-4 py-4">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={collisionDetection}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
