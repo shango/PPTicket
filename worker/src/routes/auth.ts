@@ -3,6 +3,9 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie';
 import { Env, User } from '../types';
 import { signJWT, verifyJWT } from '../lib/jwt';
 import { hashPassword, verifyPassword } from '../lib/password';
+import { sendEmail, newUserEmail } from '../lib/email';
+
+const ALLOWED_DOMAIN = 'pdoexperts.fb.com';
 
 function getCookieOptions(c: any) {
   const isLocal = c.env.FRONTEND_URL?.includes('localhost');
@@ -25,7 +28,42 @@ authRoutes.post('/login', async (c) => {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email and password are required.' } }, 400);
   }
 
-  const user = await c.env.DB.prepare('SELECT id, email, name, role, password_hash, must_change_password FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first<User & { password_hash: string; must_change_password: number }>();
+  const normalizedEmail = email.toLowerCase().trim();
+  let user = await c.env.DB.prepare('SELECT id, email, name, role, password_hash, must_change_password FROM users WHERE email = ?').bind(normalizedEmail).first<User & { password_hash: string; must_change_password: number }>();
+
+  // Auto-register users from the allowed domain
+  if (!user && normalizedEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+    if (password.length < 8) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
+    }
+
+    const localPart = normalizedEmail.split('@')[0];
+    // Derive name from email: first.last@domain → First Last
+    const nameParts = localPart.split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1));
+    const firstName = nameParts[0] || localPart;
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    const name = lastName ? `${firstName} ${lastName}` : firstName;
+
+    const id = crypto.randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    const passwordHash = await hashPassword(password);
+
+    await c.env.DB.prepare(
+      'INSERT INTO users (id, email, name, first_name, last_name, avatar_url, role, password_hash, must_change_password, created_at, last_login) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, ?)'
+    ).bind(id, normalizedEmail, name, firstName, lastName || null, 'viewer', passwordHash, now, now).run();
+
+    // Notify admins of new user
+    const adminEmailResult = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin'").all<{ email: string }>();
+    if (adminEmailResult.results.length > 0) {
+      const emailData = newUserEmail(name, normalizedEmail, c.env.FRONTEND_URL);
+      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: adminEmailResult.results.map(a => a.email), ...emailData }));
+    }
+
+    const token = await signJWT({ sub: id, email: normalizedEmail, role: 'viewer' }, c.env.JWT_SECRET);
+    setCookie(c, 'session', token, getCookieOptions(c));
+
+    return c.json({ data: { token, must_change_password: false, user: { id, email: normalizedEmail, name, role: 'viewer' } }, error: null });
+  }
 
   if (!user || !user.password_hash) {
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Invalid email or password.' } }, 401);
