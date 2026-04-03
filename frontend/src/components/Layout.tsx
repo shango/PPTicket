@@ -7,6 +7,7 @@ import { registerPush, unregisterPush, isPushEnabled } from '../lib/push';
 export function Layout() {
   const user = useStore((s) => s.user);
   const logout = useStore((s) => s.logout);
+  const fetchUser = useStore((s) => s.fetchUser);
   const [showDropdown, setShowDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pwForm, setPwForm] = useState({ current: '', new: '', confirm: '' });
@@ -134,6 +135,28 @@ export function Layout() {
                     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
                   </svg>
                   {pushLoading ? 'Loading...' : pushEnabled ? 'Notifications On' : 'Notifications Off'}
+                </button>
+                <button
+                  onClick={async () => {
+                    const newTheme = user.theme === 'light' ? 'dark' : 'light';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    try {
+                      await api.updateTheme(newTheme);
+                      await fetchUser();
+                    } catch { /* revert on failure */ document.documentElement.setAttribute('data-theme', user.theme || 'dark'); }
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[13px] text-text-secondary hover:text-text-primary hover:bg-bg-hover transition-colors flex items-center gap-2"
+                >
+                  {user.theme === 'light' ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-muted">
+                      <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                  )}
+                  {user.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
                 </button>
                 <button
                   onClick={() => { setShowDropdown(false); navigate('/stats'); }}

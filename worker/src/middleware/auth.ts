@@ -25,7 +25,7 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired session.' } }, 401);
   }
 
-  const user = await c.env.DB.prepare('SELECT id, email, name, first_name, last_name, avatar_url, role, must_change_password, created_at, last_login FROM users WHERE id = ?').bind(payload.sub).first<User>();
+  const user = await c.env.DB.prepare('SELECT id, email, name, first_name, last_name, avatar_url, role, must_change_password, theme, created_at, last_login FROM users WHERE id = ?').bind(payload.sub).first<User>();
   if (!user || user.role === ('suspended' as Role)) {
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Account not found or suspended.' } }, 401);
   }

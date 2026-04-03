@@ -14,6 +14,17 @@ userRoutes.get('/me', (c) => {
   return c.json({ data: user, error: null });
 });
 
+// PATCH /api/v1/users/me/theme
+userRoutes.patch('/me/theme', async (c) => {
+  const user = c.get('user');
+  const { theme } = await c.req.json<{ theme: string }>();
+  if (!['dark', 'light'].includes(theme)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid theme.' } }, 400);
+  }
+  await c.env.DB.prepare('UPDATE users SET theme = ? WHERE id = ?').bind(theme, user.id).run();
+  return c.json({ data: { theme }, error: null });
+});
+
 // GET /api/v1/users/names (all authenticated users — for @mention autocomplete)
 userRoutes.get('/names', async (c) => {
   const result = await c.env.DB.prepare("SELECT id, name FROM users WHERE role != 'suspended' ORDER BY name ASC").all<{ id: string; name: string }>();

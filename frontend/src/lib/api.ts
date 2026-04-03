@@ -55,6 +55,8 @@ export const api = {
   // Users
   getMe: () => request<User>('/api/v1/users/me'),
   getUsers: () => request<User[]>('/api/v1/users'),
+  updateTheme: (theme: 'dark' | 'light') =>
+    request<{ theme: string }>('/api/v1/users/me/theme', { method: 'PATCH', body: JSON.stringify({ theme }) }),
   getUserNames: () => request<{ id: string; name: string }[]>('/api/v1/users/names'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
@@ -139,6 +141,7 @@ export interface User {
   last_name: string | null;
   avatar_url: string | null;
   role: 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
+  theme: 'dark' | 'light';
   created_at: number;
   last_login: number | null;
 }

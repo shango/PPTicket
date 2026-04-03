@@ -19,6 +19,7 @@ export interface User {
   name: string;
   avatar_url: string | null;
   role: Role;
+  theme: string;
   created_at: number;
   last_login: number | null;
 }
