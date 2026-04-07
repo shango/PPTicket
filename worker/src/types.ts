@@ -19,6 +19,7 @@ export interface User {
   name: string;
   avatar_url: string | null;
   role: Role;
+  must_change_password: number;
   theme: string;
   ticket_size: string;
   notify_ticket_created: number;

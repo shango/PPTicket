@@ -63,7 +63,8 @@ authRoutes.post('/register', async (c) => {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  if (!normalizedEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+  const emailDomain = normalizedEmail.split('@')[1];
+  if (emailDomain !== ALLOWED_DOMAIN) {
     return c.json({ data: null, error: { code: 'FORBIDDEN', message: `Registration is only available for @${ALLOWED_DOMAIN} email addresses.` } }, 403);
   }
 

@@ -147,6 +147,7 @@ export interface User {
   last_name: string | null;
   avatar_url: string | null;
   role: 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
+  must_change_password: number;
   theme: 'dark' | 'light';
   ticket_size: 'small' | 'large';
   notify_ticket_created: number;
@@ -195,8 +196,8 @@ export interface TicketDetail extends TicketWithMeta {
 export interface Comment {
   id: string;
   ticket_id: string;
-  author_id: string;
-  author_name: string;
+  author_id: string | null;
+  author_name: string | null;
   author_avatar: string | null;
   body: string;
   created_at: number;

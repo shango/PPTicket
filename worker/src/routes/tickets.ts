@@ -240,15 +240,27 @@ ticketRoutes.patch('/:id', async (c) => {
     }
     updates.push('title = ?'); values.push(body.title);
   }
-  if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
-  if (body.product_version !== undefined) { updates.push('product_version = ?'); values.push(body.product_version); }
+  if (body.description !== undefined) {
+    if (typeof body.description === 'string' && body.description.length > 0 && body.description.length < 20) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Description must be at least 20 characters.' } }, 400);
+    }
+    updates.push('description = ?'); values.push(body.description);
+  }
+  if (body.product_version !== undefined) {
+    if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change product version.' } }, 403);
+    updates.push('product_version = ?'); values.push(body.product_version);
+  }
   if (body.ticket_type !== undefined) {
+    if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change ticket type.' } }, 403);
     if (!['bug', 'feature'].includes(body.ticket_type)) {
       return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid ticket type.' } }, 400);
     }
     updates.push('ticket_type = ?'); values.push(body.ticket_type);
   }
-  if (body.product_id !== undefined) { updates.push('product_id = ?'); values.push(body.product_id); }
+  if (body.product_id !== undefined) {
+    if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change product.' } }, 403);
+    updates.push('product_id = ?'); values.push(body.product_id);
+  }
 
   // Priority and assignee changes are restricted to dev/admin
   if (body.priority !== undefined) {
@@ -260,7 +272,10 @@ ticketRoutes.patch('/:id', async (c) => {
     }
     updates.push('priority = ?'); values.push(body.priority);
   }
-  if (body.edc !== undefined) { updates.push('edc = ?'); values.push(body.edc); }
+  if (body.edc !== undefined) {
+    if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change EDC.' } }, 403);
+    updates.push('edc = ?'); values.push(body.edc);
+  }
 
   // Handle assignee changes with notification (dev/admin only)
   if (body.assignee_ids !== undefined) {
@@ -382,6 +397,22 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
     }, c.env.VAPID_PUBLIC_KEY, c.env.VAPID_PRIVATE_KEY));
   }
 
+  // Renormalize sort_order if precision is getting too low
+  const colTickets = await c.env.DB.prepare('SELECT id, sort_order FROM tickets WHERE status = ? ORDER BY sort_order ASC').bind(status).all<{ id: string; sort_order: number }>();
+  const items = colTickets.results;
+  let needsRenorm = false;
+  for (let i = 1; i < items.length; i++) {
+    if (Math.abs(items[i].sort_order - items[i - 1].sort_order) < 1e-6) {
+      needsRenorm = true;
+      break;
+    }
+  }
+  if (needsRenorm) {
+    await Promise.all(items.map((item, i) =>
+      c.env.DB.prepare('UPDATE tickets SET sort_order = ? WHERE id = ?').bind(i + 1, item.id).run()
+    ));
+  }
+
   const updated = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
   return c.json({ data: updated, error: null });
 });
@@ -391,7 +422,7 @@ ticketRoutes.get('/:id/comments', async (c) => {
   const { id } = c.req.param();
   const user = c.get('user');
   const result = await c.env.DB.prepare(
-    'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.ticket_id = ? ORDER BY c.created_at ASC'
+    'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.ticket_id = ? ORDER BY c.created_at ASC'
   ).bind(id).all();
 
   // Track that user has seen this ticket's comments (for first-only push suppression)
@@ -445,15 +476,15 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   }
 
   // Parse @mentions from comment body and add to recipients
-  const mentionMatches = body.match(/@[\w][\w\s]*/g);
+  const mentionMatches = body.match(/@[A-Za-z][A-Za-z ]+?(?=\s{2}|[.,;:!?\n]|$)/g);
   if (mentionMatches) {
     const mentionNames = mentionMatches.map(m => m.slice(1).trim()).filter(Boolean);
     for (const name of mentionNames) {
       const mentioned = await c.env.DB.prepare(
         "SELECT id, email, notify_ticket_comment FROM users WHERE name = ? AND role != 'suspended'"
-      ).bind(name).first<{ id: string; email: string; notify_ticket_comment: number }>();
-      if (mentioned && mentioned.id !== user.id && mentioned.notify_ticket_comment) {
-        toEmails.add(mentioned.email);
+      ).bind(name).all<{ id: string; email: string; notify_ticket_comment: number }>();
+      for (const m of mentioned.results) {
+        if (m.id !== user.id && m.notify_ticket_comment) toEmails.add(m.email);
       }
     }
   }
@@ -474,8 +505,10 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   }
   if (mentionMatches) {
     for (const name of mentionMatches.map(m => m.slice(1).trim()).filter(Boolean)) {
-      const mentioned = await c.env.DB.prepare("SELECT id FROM users WHERE name = ? AND role != 'suspended'").bind(name).first<{ id: string }>();
-      if (mentioned && mentioned.id !== user.id) pushRecipientUserIds.add(mentioned.id);
+      const mentioned = await c.env.DB.prepare("SELECT id FROM users WHERE name = ? AND role != 'suspended'").bind(name).all<{ id: string }>();
+      for (const m of mentioned.results) {
+        if (m.id !== user.id) pushRecipientUserIds.add(m.id);
+      }
     }
   }
 
@@ -507,7 +540,7 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   }
 
   const comment = await c.env.DB.prepare(
-    'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c JOIN users u ON c.author_id = u.id WHERE c.id = ?'
+    'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.id = ?'
   ).bind(id).first();
   return c.json({ data: comment, error: null }, 201);
 });

@@ -202,10 +202,11 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
   const permanent = c.req.query('permanent') === 'true';
 
   if (permanent) {
-    // Clean up all references before deleting
+    // Clean up references — nullify submitter so tickets are preserved with "Deleted User"
     await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE user_id = ?').bind(id).run();
-    await c.env.DB.prepare('UPDATE tickets SET submitter_id = ? WHERE submitter_id = ?').bind(currentUser.id, id).run();
-    await c.env.DB.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
+    await c.env.DB.prepare('UPDATE tickets SET submitter_id = NULL WHERE submitter_id = ?').bind(id).run();
+    await c.env.DB.prepare('UPDATE comments SET author_id = NULL WHERE author_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }

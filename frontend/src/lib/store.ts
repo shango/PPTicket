@@ -31,7 +31,7 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const user = await api.getMe();
       document.documentElement.setAttribute('data-theme', user.theme || 'dark');
-      set({ user, mustChangePassword: !!(user as any).must_change_password, initialized: true });
+      set({ user, mustChangePassword: !!user.must_change_password, initialized: true });
     } catch {
       set({ user: null, initialized: true });
     }
