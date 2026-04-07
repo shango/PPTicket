@@ -48,7 +48,7 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {/* Top row: ticket number, product, type, priority */}
       <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
-          <span className={`${isSmall ? 'text-[10px]' : 'text-[11px]'} font-mono text-text-muted font-medium`}>PDO-{ticket.ticket_number}</span>
+          {!isSmall && <span className="text-[11px] text-text-muted font-medium">{new Date(ticket.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</span>}
           {ticket.product_abbreviation && (
             <span
               className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-medium`}

@@ -36,6 +36,34 @@ userRoutes.patch('/me/ticket-size', async (c) => {
   return c.json({ data: { ticket_size }, error: null });
 });
 
+// PATCH /api/v1/users/me/email-preferences
+userRoutes.patch('/me/email-preferences', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json<Record<string, boolean>>();
+
+  const validKeys = ['notify_ticket_created', 'notify_ticket_assigned', 'notify_ticket_done', 'notify_ticket_comment', 'notify_user_registered'];
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  for (const key of validKeys) {
+    if (key in body) {
+      if (typeof body[key] !== 'boolean') {
+        return c.json({ data: null, error: { code: 'INVALID_INPUT', message: `${key} must be a boolean.` } }, 400);
+      }
+      updates.push(`${key} = ?`);
+      values.push(body[key] ? 1 : 0);
+    }
+  }
+
+  if (updates.length === 0) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No valid preferences provided.' } }, 400);
+  }
+
+  values.push(user.id);
+  await c.env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  return c.json({ data: { message: 'Preferences updated' }, error: null });
+});
+
 // GET /api/v1/users/names (all authenticated users — for @mention autocomplete)
 userRoutes.get('/names', async (c) => {
   const result = await c.env.DB.prepare("SELECT id, name FROM users WHERE role != 'suspended' ORDER BY name ASC").all<{ id: string; name: string }>();

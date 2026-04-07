@@ -132,6 +132,10 @@ export const api = {
     request<Column[]>('/api/v1/columns/reorder', { method: 'POST', body: JSON.stringify({ order }) }),
   deleteColumn: (id: string) =>
     request(`/api/v1/columns/${id}`, { method: 'DELETE' }),
+
+  // Email preferences
+  updateEmailPreferences: (prefs: Partial<{ notify_ticket_created: boolean; notify_ticket_assigned: boolean; notify_ticket_done: boolean; notify_ticket_comment: boolean; notify_user_registered: boolean }>) =>
+    request<{ message: string }>('/api/v1/users/me/email-preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),
 };
 
 // Types
@@ -145,6 +149,11 @@ export interface User {
   role: 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
   theme: 'dark' | 'light';
   ticket_size: 'small' | 'large';
+  notify_ticket_created: number;
+  notify_ticket_assigned: number;
+  notify_ticket_done: number;
+  notify_ticket_comment: number;
+  notify_user_registered: number;
   created_at: number;
   last_login: number | null;
 }

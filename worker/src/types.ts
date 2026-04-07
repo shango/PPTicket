@@ -21,6 +21,11 @@ export interface User {
   role: Role;
   theme: string;
   ticket_size: string;
+  notify_ticket_created: number;
+  notify_ticket_assigned: number;
+  notify_ticket_done: number;
+  notify_ticket_comment: number;
+  notify_user_registered: number;
   created_at: number;
   last_login: number | null;
 }

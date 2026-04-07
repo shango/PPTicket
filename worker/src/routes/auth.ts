@@ -85,8 +85,8 @@ authRoutes.post('/register', async (c) => {
     'INSERT INTO users (id, email, name, first_name, last_name, avatar_url, role, password_hash, must_change_password, created_at, last_login) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?, ?)'
   ).bind(id, normalizedEmail, name, first_name.trim(), last_name.trim(), 'viewer', passwordHash, now, now).run();
 
-  // Notify admins
-  const adminEmails = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin'").all<{ email: string }>();
+  // Notify admins (respecting email preferences)
+  const adminEmails = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin' AND notify_user_registered = 1").all<{ email: string }>();
   if (adminEmails.results.length > 0) {
     const emailData = newUserEmail(name, normalizedEmail, c.env.FRONTEND_URL);
     c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: adminEmails.results.map(a => a.email), ...emailData }));
