@@ -42,10 +42,10 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Pro
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg ${isSmall ? 'p-1.5' : 'p-3'} cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
+      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg ${isSmall ? 'px-1.5 py-1' : 'p-3'} cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
     >
       {/* Top row: ticket number, product, type, priority */}
-      <div className={`flex items-center justify-between ${isSmall ? 'mb-1' : 'mb-2'}`}>
+      <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
           <span className={`${isSmall ? 'text-[10px]' : 'text-[11px]'} font-mono text-text-muted font-medium`}>PDO-{ticket.ticket_number}</span>
           {ticket.product_abbreviation && (
@@ -58,13 +58,11 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Pro
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {!isSmall && (
-            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-              ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
-            }`}>
-              {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
-            </span>
-          )}
+          <span className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-medium ${
+            ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+          }`}>
+            {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
+          </span>
           <span
             className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-semibold`}
             style={{ backgroundColor: pStyle.bg, color: pStyle.text }}
@@ -75,7 +73,7 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Pro
       </div>
 
       {/* Title */}
-      <h3 className={`${isSmall ? 'text-[12px] line-clamp-1 mb-1' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
+      <h3 className={`${isSmall ? 'text-[11px] line-clamp-1 mb-0.5' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
 
       {/* Tags — hidden in small mode */}
       {!isSmall && ticket.tags.length > 0 && (
