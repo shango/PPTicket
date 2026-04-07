@@ -36,6 +36,44 @@ userRoutes.patch('/me/ticket-size', async (c) => {
   return c.json({ data: { ticket_size }, error: null });
 });
 
+// PATCH /api/v1/users/me/profile
+userRoutes.patch('/me/profile', async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string }>();
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (body.first_name !== undefined) {
+    if (!body.first_name.trim()) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'First name is required.' } }, 400);
+    updates.push('first_name = ?'); values.push(body.first_name.trim());
+  }
+  if (body.last_name !== undefined) {
+    if (!body.last_name.trim()) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Last name is required.' } }, 400);
+    updates.push('last_name = ?'); values.push(body.last_name.trim());
+  }
+  if (body.first_name !== undefined || body.last_name !== undefined) {
+    const fn = body.first_name?.trim() || user.first_name || '';
+    const ln = body.last_name?.trim() || user.last_name || '';
+    updates.push('name = ?'); values.push(`${fn} ${ln}`.trim());
+  }
+  if (body.email !== undefined) {
+    const normalizedEmail = body.email.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
+    }
+    const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(normalizedEmail, user.id).first();
+    if (dup) return c.json({ data: null, error: { code: 'CONFLICT', message: 'Email already in use.' } }, 409);
+    updates.push('email = ?'); values.push(normalizedEmail);
+  }
+
+  if (updates.length === 0) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No fields to update.' } }, 400);
+
+  values.push(user.id);
+  await c.env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
+  return c.json({ data: { message: 'Profile updated' }, error: null });
+});
+
 // PATCH /api/v1/users/me/email-preferences
 userRoutes.patch('/me/email-preferences', async (c) => {
   const user = c.get('user');

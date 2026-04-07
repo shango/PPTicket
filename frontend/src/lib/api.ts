@@ -59,6 +59,8 @@ export const api = {
     request<{ theme: string }>('/api/v1/users/me/theme', { method: 'PATCH', body: JSON.stringify({ theme }) }),
   updateTicketSize: (ticket_size: 'small' | 'large') =>
     request<{ ticket_size: string }>('/api/v1/users/me/ticket-size', { method: 'PATCH', body: JSON.stringify({ ticket_size }) }),
+  updateProfile: (data: { first_name?: string; last_name?: string; email?: string }) =>
+    request<{ message: string }>('/api/v1/users/me/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   getUserNames: () => request<{ id: string; name: string }[]>('/api/v1/users/names'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),

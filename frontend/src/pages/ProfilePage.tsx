@@ -43,6 +43,11 @@ export function ProfilePage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [pwLoading, setPwLoading] = useState(false);
 
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', email: '' });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
   useEffect(() => {
     isPushEnabled().then(setPushEnabled);
   }, []);
@@ -115,6 +120,36 @@ export function ProfilePage() {
     }
   }
 
+  function startEditingProfile() {
+    setProfileForm({
+      first_name: user!.first_name || '',
+      last_name: user!.last_name || '',
+      email: user!.email,
+    });
+    setProfileError('');
+    setEditingProfile(true);
+  }
+
+  async function handleSaveProfile() {
+    setProfileSaving(true);
+    setProfileError('');
+    try {
+      const updates: { first_name?: string; last_name?: string; email?: string } = {};
+      if (profileForm.first_name !== (user!.first_name || '')) updates.first_name = profileForm.first_name;
+      if (profileForm.last_name !== (user!.last_name || '')) updates.last_name = profileForm.last_name;
+      if (profileForm.email !== user!.email) updates.email = profileForm.email;
+      if (Object.keys(updates).length > 0) {
+        await api.updateProfile(updates);
+        await fetchUser();
+      }
+      setEditingProfile(false);
+    } catch (e: any) {
+      setProfileError(e.message || 'Failed to save profile.');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
       <h1 className="text-lg font-semibold text-text-primary">Settings</h1>
@@ -125,34 +160,95 @@ export function ProfilePage() {
           <h2 className="text-[13px] font-semibold text-text-secondary uppercase tracking-wider">Profile</h2>
         </div>
         <div className="px-6 py-5">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-full bg-accent/15 flex items-center justify-center text-lg font-bold text-accent shrink-0">
-              {initials}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold text-text-primary">{user.name}</p>
-              <p className="text-[13px] text-text-muted mt-0.5">{user.email}</p>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium capitalize">
-                  {user.role.replace('_', ' ')}
-                </span>
-                <span className="text-[11px] text-text-muted">
-                  Member since {memberSince}
-                </span>
+          {!editingProfile ? (
+            <>
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 rounded-full bg-accent/15 flex items-center justify-center text-lg font-bold text-accent shrink-0">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-text-primary">{user.name}</p>
+                  <p className="text-[13px] text-text-muted mt-0.5">{user.email}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium capitalize">
+                      {user.role.replace('_', ' ')}
+                    </span>
+                    <span className="text-[11px] text-text-muted">
+                      Member since {memberSince}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 pt-4 border-t border-border-subtle flex items-center gap-4">
+                <button
+                  onClick={startEditingProfile}
+                  className="text-[13px] text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                  Edit Profile
+                </button>
+                <button
+                  onClick={() => { setShowPasswordModal(true); setPwError(''); setPwSuccess(''); setPwForm({ current: '', new: '', confirm: '' }); }}
+                  className="text-[13px] text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  Change Password
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              {profileError && (
+                <div className="bg-danger/8 border border-danger/20 rounded-lg p-2.5">
+                  <p className="text-danger text-xs">{profileError}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">First Name</label>
+                  <input
+                    type="text" value={profileForm.first_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
+                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-text-secondary block mb-1.5 font-medium">Last Name</label>
+                  <input
+                    type="text" value={profileForm.last_name}
+                    onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                    className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Email</label>
+                <input
+                  type="email" value={profileForm.email}
+                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleSaveProfile} disabled={profileSaving}
+                  className="px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
+                >
+                  {profileSaving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditingProfile(false)}
+                  className="px-4 py-2 bg-bg-elevated text-text-secondary border border-border rounded-lg text-sm hover:text-text-primary hover:bg-bg-hover"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
-          </div>
-          <div className="mt-5 pt-4 border-t border-border-subtle">
-            <button
-              onClick={() => { setShowPasswordModal(true); setPwError(''); setPwSuccess(''); setPwForm({ current: '', new: '', confirm: '' }); }}
-              className="text-[13px] text-accent hover:text-accent-hover font-medium transition-colors flex items-center gap-1.5"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              Change Password
-            </button>
-          </div>
+          )}
         </div>
       </section>
 

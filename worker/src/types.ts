@@ -17,6 +17,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   avatar_url: string | null;
   role: Role;
   must_change_password: number;
