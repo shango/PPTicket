@@ -275,6 +275,7 @@ export function BoardPage() {
                 tickets={columnTickets[col.slug] || []}
                 onTicketClick={(t) => setSelectedTicket(t)}
                 isDraggable={canDrag}
+                ticketSize={user?.ticket_size || 'large'}
               />
             ))}
           </div>
@@ -285,6 +286,7 @@ export function BoardPage() {
                 ticket={activeTicket}
                 onClick={() => {}}
                 isDraggable={false}
+                size={user?.ticket_size || 'large'}
               />
             ) : null}
           </DragOverlay>

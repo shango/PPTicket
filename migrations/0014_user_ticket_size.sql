@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN ticket_size TEXT NOT NULL DEFAULT 'large';

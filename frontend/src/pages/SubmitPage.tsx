@@ -1,39 +1,96 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api, type TicketWithMeta, type Project, type User } from '../lib/api';
 import { useStore } from '../lib/store';
 
+function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
+  const [search, setSearch] = useState('');
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const filtered = users.filter((u) => !selectedIds.includes(u.id) && u.name.toLowerCase().includes(search.toLowerCase()));
+  const selected = users.filter((u) => selectedIds.includes(u.id));
+
+  return (
+    <div ref={ref} className="relative">
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {selected.map((u) => (
+            <span key={u.id} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 bg-accent/10 text-accent rounded-full font-medium">
+              {u.name}
+              <button type="button" onClick={() => onChange(selectedIds.filter(id => id !== u.id))}
+                className="hover:text-danger ml-0.5">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        onFocus={() => setOpen(true)}
+        placeholder={selected.length > 0 ? 'Add more...' : 'Search users...'}
+        className="w-full bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[13px]"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto">
+          {filtered.map((u) => (
+            <button key={u.id} type="button"
+              onClick={() => { onChange([...selectedIds, u.id]); setSearch(''); }}
+              className="w-full text-left px-2.5 py-1.5 text-[13px] text-text-secondary hover:bg-bg-elevated hover:text-text-primary">
+              {u.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {open && filtered.length === 0 && search && (
+        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 px-2.5 py-2 text-[12px] text-text-muted">
+          No matching users
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SubmitPage() {
   const user = useStore((s) => s.user);
+  const canAssign = user && ['dev', 'admin'].includes(user.role);
   const [form, setForm] = useState({
     title: '',
     description: '',
     priority: 'p2',
     ticket_type: '' as '' | 'bug' | 'feature',
     product_id: '',
-    submitter_id: '',
     tags: '',
     product_version: '',
   });
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [status, setStatus] = useState('backlog');
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ ticketNumber: number } | null>(null);
   const [error, setError] = useState('');
   const [myTickets, setMyTickets] = useState<TicketWithMeta[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-
-  const isAdmin = user?.role === 'admin';
-
+  const [devUsers, setDevUsers] = useState<User[]>([]);
   useEffect(() => {
     api.getProjects().then(setProjects).catch(() => {});
-    if (isAdmin) {
+    if (canAssign) {
       api.getUsers().then((users) => {
-        if (Array.isArray(users)) setAllUsers(users.filter(u => u.role !== 'suspended'));
+        if (Array.isArray(users)) setDevUsers(users.filter(u => ['decision_maker', 'dev', 'admin'].includes(u.role)));
       }).catch(() => {});
     }
-    if (user) {
-      setForm(f => ({ ...f, submitter_id: f.submitter_id || user.id }));
-    }
-  }, [user, isAdmin]);
+  }, [canAssign]);
 
   useEffect(() => {
     if (user) {
@@ -63,11 +120,13 @@ export function SubmitPage() {
         product_version: form.product_version || null,
         ticket_type: form.ticket_type as 'bug' | 'feature',
         product_id: form.product_id || null,
-        submitter_id: form.submitter_id || null,
+        ...(canAssign ? { assignee_ids: assigneeIds, status } : {}),
       });
 
       setSuccess({ ticketNumber: ticket.ticket_number });
-      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', submitter_id: user?.id || '', tags: '', product_version: '' });
+      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', product_version: '' });
+      setAssigneeIds([]);
+      setStatus('backlog');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -100,8 +159,8 @@ export function SubmitPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Type + Product + Submitter row */}
-        <div className={`grid gap-4 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        {/* Type + Project row */}
+        <div className="grid gap-4 grid-cols-2">
           <div>
             <label className={fieldLabel}>Type <span className="text-danger">*</span></label>
             <div className="flex gap-2 mt-1">
@@ -142,19 +201,37 @@ export function SubmitPage() {
               ))}
             </select>
           </div>
-          {isAdmin && (
-            <div>
-              <label className={fieldLabel}>Submitted By <span className="text-danger">*</span></label>
-              <select value={form.submitter_id} onChange={(e) => setForm({ ...form, submitter_id: e.target.value })}
-                required className={fieldInput}>
-                <option value="">Select submitter...</option>
-                {allUsers.map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
+
+        {canAssign && (
+          <div className="grid gap-4 grid-cols-2">
+            <div>
+              <label className={fieldLabel}>Assign To</label>
+              <AssigneeSelect users={devUsers} selectedIds={assigneeIds} onChange={setAssigneeIds} />
+            </div>
+            <div>
+              <label className={fieldLabel}>Status</label>
+              <div className="flex gap-2 mt-1">
+                <button type="button" onClick={() => setStatus('backlog')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
+                    status === 'backlog'
+                      ? 'bg-accent/10 border-accent/40 text-accent'
+                      : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
+                  }`}>
+                  Backlog
+                </button>
+                <button type="button" onClick={() => setStatus('todo')}
+                  className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
+                    status === 'todo'
+                      ? 'bg-accent/10 border-accent/40 text-accent'
+                      : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
+                  }`}>
+                  To Do
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className={fieldLabel}>Title <span className="text-danger">*</span></label>

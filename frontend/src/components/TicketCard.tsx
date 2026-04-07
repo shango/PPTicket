@@ -13,9 +13,10 @@ interface Props {
   ticket: TicketWithMeta;
   onClick: () => void;
   isDraggable: boolean;
+  size?: 'small' | 'large';
 }
 
-export function TicketCard({ ticket, onClick, isDraggable }: Props) {
+export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ticket.id,
     disabled: !isDraggable,
@@ -32,6 +33,8 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
 
   const isPastEdc = ticket.edc && ticket.edc * 1000 < Date.now();
 
+  const isSmall = size === 'small';
+
   return (
     <div
       ref={setNodeRef}
@@ -39,15 +42,15 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg p-3 cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
+      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg ${isSmall ? 'p-1.5' : 'p-3'} cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
     >
       {/* Top row: ticket number, product, type, priority */}
-      <div className="flex items-center justify-between mb-2">
+      <div className={`flex items-center justify-between ${isSmall ? 'mb-1' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-mono text-text-muted font-medium">PDO-{ticket.ticket_number}</span>
+          <span className={`${isSmall ? 'text-[10px]' : 'text-[11px]'} font-mono text-text-muted font-medium`}>PDO-{ticket.ticket_number}</span>
           {ticket.product_abbreviation && (
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+              className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-medium`}
               style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}
             >
               {ticket.product_abbreviation}
@@ -55,13 +58,15 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-            ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
-          }`}>
-            {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
-          </span>
+          {!isSmall && (
+            <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+              ticket.ticket_type === 'feature' ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
+            }`}>
+              {ticket.ticket_type === 'feature' ? 'Feature' : 'Bug'}
+            </span>
+          )}
           <span
-            className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+            className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-semibold`}
             style={{ backgroundColor: pStyle.bg, color: pStyle.text }}
           >
             {ticket.priority.toUpperCase()}
@@ -70,10 +75,10 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
       </div>
 
       {/* Title */}
-      <h3 className="text-[13px] font-medium text-text-primary mb-2 line-clamp-2 leading-snug">{ticket.title}</h3>
+      <h3 className={`${isSmall ? 'text-[12px] line-clamp-1 mb-1' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
 
-      {/* Tags */}
-      {ticket.tags.length > 0 && (
+      {/* Tags — hidden in small mode */}
+      {!isSmall && ticket.tags.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
           {ticket.tags.slice(0, 2).map((tag) => (
             <span key={tag} className="text-[10px] px-1.5 py-0.5 bg-bg-elevated rounded text-text-muted">
@@ -87,9 +92,9 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-[11px] text-text-muted">
+      <div className={`flex items-center justify-between ${isSmall ? 'text-[10px]' : 'text-[11px]'} text-text-muted`}>
         <div>
-          {ticket.edc && (
+          {!isSmall && ticket.edc && (
             <span className={isPastEdc ? 'text-danger' : ''}>
               EDC {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
             </span>
@@ -97,14 +102,14 @@ export function TicketCard({ ticket, onClick, isDraggable }: Props) {
         </div>
         {ticket.assignee_names.length > 0 && (
           <div className="flex -space-x-1.5">
-            {ticket.assignee_names.slice(0, 3).map((name, i) => (
-              <div key={i} className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-[10px] text-accent font-semibold ring-1 ring-bg-surface">
+            {ticket.assignee_names.slice(0, isSmall ? 2 : 3).map((name, i) => (
+              <div key={i} className={`${isSmall ? 'w-5 h-5 text-[9px]' : 'w-6 h-6 text-[10px]'} rounded-full bg-accent/15 flex items-center justify-center text-accent font-semibold ring-1 ring-bg-surface`}>
                 {name.split(' ').map(n => n[0]).join('').toUpperCase()}
               </div>
             ))}
-            {ticket.assignee_names.length > 3 && (
-              <div className="w-6 h-6 rounded-full bg-bg-elevated flex items-center justify-center text-[9px] text-text-muted font-medium ring-1 ring-bg-surface">
-                +{ticket.assignee_names.length - 3}
+            {ticket.assignee_names.length > (isSmall ? 2 : 3) && (
+              <div className={`${isSmall ? 'w-5 h-5 text-[8px]' : 'w-6 h-6 text-[9px]'} rounded-full bg-bg-elevated flex items-center justify-center text-text-muted font-medium ring-1 ring-bg-surface`}>
+                +{ticket.assignee_names.length - (isSmall ? 2 : 3)}
               </div>
             )}
           </div>

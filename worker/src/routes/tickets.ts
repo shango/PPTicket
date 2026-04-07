@@ -59,6 +59,8 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     ticket_type?: TicketType;
     product_id?: string | null;
     submitter_id?: string | null;
+    assignee_ids?: string[];
+    status?: string;
   }>();
 
   if (!body.title || body.title.length > 200) {
@@ -86,15 +88,25 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     submitterId = body.submitter_id;
   }
 
-  // Get the initial column
-  const initialCol = await c.env.DB.prepare('SELECT slug FROM columns WHERE is_initial = 1 LIMIT 1').first<{ slug: string }>();
-  const initialStatus = initialCol?.slug || 'backlog';
+  // Determine initial status — dev/admin can choose backlog or todo
+  let initialStatus = 'backlog';
+  if (body.status && ['dev', 'admin'].includes(user.role)) {
+    const validStatuses = ['backlog', 'todo'];
+    if (validStatuses.includes(body.status)) {
+      initialStatus = body.status;
+    }
+  } else {
+    const initialCol = await c.env.DB.prepare('SELECT slug FROM columns WHERE is_initial = 1 LIMIT 1').first<{ slug: string }>();
+    initialStatus = initialCol?.slug || 'backlog';
+  }
 
-  // Auto-assign to project's default owner if a project is selected
-  let assigneeId: string | null = null;
-  if (body.product_id) {
+  // Determine assignees — dev/admin can explicitly set, otherwise auto-assign from project
+  let assigneeIds: string[] = [];
+  if (body.assignee_ids && body.assignee_ids.length > 0 && ['dev', 'admin'].includes(user.role)) {
+    assigneeIds = body.assignee_ids;
+  } else if (body.product_id) {
     const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(body.product_id).first<{ default_owner_id: string | null }>();
-    if (project?.default_owner_id) assigneeId = project.default_owner_id;
+    if (project?.default_owner_id) assigneeIds = [project.default_owner_id];
   }
 
   // Atomic insert with computed ticket_number and sort_order to avoid race conditions
@@ -104,11 +116,11 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
      FROM tickets`
   ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
 
-  // Add default assignee to junction table
-  if (assigneeId) {
+  // Add assignees to junction table
+  for (const aid of assigneeIds) {
     await c.env.DB.prepare(
       'INSERT INTO ticket_assignees (ticket_id, user_id, created_at) VALUES (?, ?, ?)'
-    ).bind(id, assigneeId, now).run();
+    ).bind(id, aid, now).run();
   }
 
   const inserted = await c.env.DB.prepare('SELECT ticket_number FROM tickets WHERE id = ?').bind(id).first<{ ticket_number: number }>();
@@ -126,10 +138,10 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const adminEmails = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin'").all<{ email: string }>();
   const toEmails = new Set(adminEmails.results.map(r => r.email));
 
-  // Add the project's default owner if assigned
-  if (assigneeId) {
-    const ownerEmail = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(assigneeId).first<{ email: string }>();
-    if (ownerEmail) toEmails.add(ownerEmail.email);
+  // Add assignees
+  for (const aid of assigneeIds) {
+    const assigneeEmail = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(aid).first<{ email: string }>();
+    if (assigneeEmail) toEmails.add(assigneeEmail.email);
   }
 
   if (toEmails.size > 0) {
@@ -141,7 +153,9 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   const pushRecipientIds: string[] = [];
   const admins = await c.env.DB.prepare("SELECT id FROM users WHERE role = 'admin' AND id != ?").bind(user.id).all<{ id: string }>();
   pushRecipientIds.push(...admins.results.map(a => a.id));
-  if (assigneeId && assigneeId !== user.id) pushRecipientIds.push(assigneeId);
+  for (const aid of assigneeIds) {
+    if (aid !== user.id && !pushRecipientIds.includes(aid)) pushRecipientIds.push(aid);
+  }
   if (pushRecipientIds.length > 0) {
     c.executionCtx.waitUntil(sendPushToUsers(c.env.DB, pushRecipientIds, {
       type: 'new_ticket', ticketNumber, title: body.title, body: `New ${body.ticket_type || 'bug'} ticket from ${user.name}`,

@@ -25,6 +25,17 @@ userRoutes.patch('/me/theme', async (c) => {
   return c.json({ data: { theme }, error: null });
 });
 
+// PATCH /api/v1/users/me/ticket-size
+userRoutes.patch('/me/ticket-size', async (c) => {
+  const user = c.get('user');
+  const { ticket_size } = await c.req.json<{ ticket_size: string }>();
+  if (!['small', 'large'].includes(ticket_size)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid ticket size.' } }, 400);
+  }
+  await c.env.DB.prepare('UPDATE users SET ticket_size = ? WHERE id = ?').bind(ticket_size, user.id).run();
+  return c.json({ data: { ticket_size }, error: null });
+});
+
 // GET /api/v1/users/names (all authenticated users — for @mention autocomplete)
 userRoutes.get('/names', async (c) => {
   const result = await c.env.DB.prepare("SELECT id, name FROM users WHERE role != 'suspended' ORDER BY name ASC").all<{ id: string; name: string }>();

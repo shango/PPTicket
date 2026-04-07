@@ -20,6 +20,7 @@ export interface User {
   avatar_url: string | null;
   role: Role;
   theme: string;
+  ticket_size: string;
   created_at: number;
   last_login: number | null;
 }

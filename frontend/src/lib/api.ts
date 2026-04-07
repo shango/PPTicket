@@ -57,6 +57,8 @@ export const api = {
   getUsers: () => request<User[]>('/api/v1/users'),
   updateTheme: (theme: 'dark' | 'light') =>
     request<{ theme: string }>('/api/v1/users/me/theme', { method: 'PATCH', body: JSON.stringify({ theme }) }),
+  updateTicketSize: (ticket_size: 'small' | 'large') =>
+    request<{ ticket_size: string }>('/api/v1/users/me/ticket-size', { method: 'PATCH', body: JSON.stringify({ ticket_size }) }),
   getUserNames: () => request<{ id: string; name: string }[]>('/api/v1/users/names'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
     request<User>('/api/v1/users', { method: 'POST', body: JSON.stringify(data) }),
@@ -142,6 +144,7 @@ export interface User {
   avatar_url: string | null;
   role: 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
   theme: 'dark' | 'light';
+  ticket_size: 'small' | 'large';
   created_at: number;
   last_login: number | null;
 }
@@ -213,6 +216,8 @@ export interface CreateTicketPayload {
   ticket_type?: 'bug' | 'feature';
   product_id?: string | null;
   submitter_id?: string | null;
+  assignee_ids?: string[];
+  status?: string;
 }
 
 export interface UpdateTicketPayload {
