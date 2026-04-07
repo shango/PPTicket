@@ -350,8 +350,23 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
   }
 
   const now = Math.floor(Date.now() / 1000);
-  await c.env.DB.prepare('UPDATE tickets SET status = ?, sort_order = ?, updated_at = ? WHERE id = ?')
-    .bind(status, sort_order, now, id).run();
+
+  // When moving to a terminal column (e.g. Done), stamp EDC with today's date
+  // When resurrecting from terminal, clear EDC so a new one must be set
+  const oldColumnIsTerminal = await c.env.DB.prepare('SELECT is_terminal FROM columns WHERE slug = ?').bind(ticket.status).first<{ is_terminal: number }>();
+  if (column.is_terminal && !(oldColumnIsTerminal?.is_terminal)) {
+    // Moving into terminal: set EDC to today (start of day UTC)
+    const todayStart = Math.floor(new Date(new Date().toISOString().split('T')[0]).getTime() / 1000);
+    await c.env.DB.prepare('UPDATE tickets SET status = ?, sort_order = ?, edc = ?, updated_at = ? WHERE id = ?')
+      .bind(status, sort_order, todayStart, now, id).run();
+  } else if (!column.is_terminal && oldColumnIsTerminal?.is_terminal) {
+    // Resurrecting from terminal: clear EDC
+    await c.env.DB.prepare('UPDATE tickets SET status = ?, sort_order = ?, edc = NULL, updated_at = ? WHERE id = ?')
+      .bind(status, sort_order, now, id).run();
+  } else {
+    await c.env.DB.prepare('UPDATE tickets SET status = ?, sort_order = ?, updated_at = ? WHERE id = ?')
+      .bind(status, sort_order, now, id).run();
+  }
 
   // Notify submitter when moved to a terminal column
   if (column.is_terminal && ticket.status !== status) {

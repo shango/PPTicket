@@ -12,7 +12,7 @@ interface AppState {
   fetchUser: () => Promise<void>;
   fetchTickets: (params?: Record<string, string>) => Promise<void>;
   setTickets: (tickets: TicketWithMeta[]) => void;
-  optimisticMoveTicket: (ticketId: string, newStatus: string, newSortOrder: number) => void;
+  optimisticMoveTicket: (ticketId: string, newStatus: string, newSortOrder: number, edcOverride?: number | null) => void;
   setMustChangePassword: (v: boolean) => void;
   logout: () => Promise<void>;
 }
@@ -49,9 +49,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   setTickets: (tickets) => set({ tickets }),
 
-  optimisticMoveTicket: (ticketId, newStatus, newSortOrder) => {
+  optimisticMoveTicket: (ticketId, newStatus, newSortOrder, edcOverride) => {
     const tickets = get().tickets.map((t) =>
-      t.id === ticketId ? { ...t, status: newStatus, sort_order: newSortOrder } : t
+      t.id === ticketId
+        ? { ...t, status: newStatus, sort_order: newSortOrder, ...(edcOverride !== undefined ? { edc: edcOverride } : {}) }
+        : t
     );
     set({ tickets });
   },

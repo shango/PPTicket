@@ -109,7 +109,12 @@ export function BoardPage() {
     if (resolvedColumn && resolvedColumn !== activeTicket.status) {
       const colItems = (columnTickets[resolvedColumn] || []).filter(t => t.id !== active.id);
       const tempSort = colItems.length > 0 ? colItems[colItems.length - 1].sort_order + 1 : 1;
-      optimisticMoveTicket(activeTicket.id, resolvedColumn, tempSort);
+      const targetCol = columns.find(c => c.slug === resolvedColumn);
+      const sourceCol = columns.find(c => c.slug === activeTicket.status);
+      const edcOverride = targetCol?.is_terminal && !sourceCol?.is_terminal
+        ? Math.floor(new Date(new Date().toISOString().split('T')[0]).getTime() / 1000)
+        : !targetCol?.is_terminal && sourceCol?.is_terminal ? null : undefined;
+      optimisticMoveTicket(activeTicket.id, resolvedColumn, tempSort, edcOverride);
     }
   }
 
@@ -276,6 +281,7 @@ export function BoardPage() {
                 onTicketClick={(t) => setSelectedTicket(t)}
                 isDraggable={canDrag}
                 ticketSize={user?.ticket_size || 'large'}
+                isTerminal={!!col.is_terminal}
               />
             ))}
           </div>

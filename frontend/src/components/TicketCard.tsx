@@ -14,9 +14,10 @@ interface Props {
   onClick: () => void;
   isDraggable: boolean;
   size?: 'small' | 'large';
+  isTerminal?: boolean;
 }
 
-export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Props) {
+export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTerminal }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ticket.id,
     disabled: !isDraggable,
@@ -92,9 +93,9 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large' }: Pro
       {/* Footer */}
       <div className={`flex items-center justify-between ${isSmall ? 'text-[10px]' : 'text-[11px]'} text-text-muted`}>
         <div>
-          {!isSmall && ticket.edc && (
-            <span className={isPastEdc ? 'text-danger' : ''}>
-              EDC {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+          {ticket.edc && (
+            <span className={isTerminal ? 'text-success' : isPastEdc ? 'text-danger' : ''}>
+              {isTerminal ? 'Done' : 'EDC'} {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
             </span>
           )}
         </div>

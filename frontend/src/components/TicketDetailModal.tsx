@@ -142,9 +142,15 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
       if (form.ticket_type !== (ticket.ticket_type || 'bug')) updates.ticket_type = form.ticket_type;
       if (form.product_id !== (ticket.product_id || '')) updates.product_id = form.product_id || null;
       const edcUnix = form.edc ? Math.floor(new Date(form.edc).getTime() / 1000) : null;
-      if (edcUnix !== ticket.edc) updates.edc = edcUnix;
 
-      if (form.status !== ticket.status) {
+      const statusChanged = form.status !== ticket.status;
+      const targetColTerminal = statusColumns.find(c => c.slug === form.status)?.is_terminal;
+      const sourceColTerminal = statusColumns.find(c => c.slug === ticket.status)?.is_terminal;
+      // Don't send EDC update if the move endpoint will handle it
+      const moveHandlesEdc = statusChanged && (targetColTerminal !== sourceColTerminal);
+      if (!moveHandlesEdc && edcUnix !== ticket.edc) updates.edc = edcUnix;
+
+      if (statusChanged) {
         await api.moveTicket(ticket.id, form.status, ticket.sort_order);
       }
       if (Object.keys(updates).length > 0) {

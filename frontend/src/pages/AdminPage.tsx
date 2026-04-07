@@ -495,8 +495,8 @@ export function AdminPage() {
                       className="accent-accent" />
                   </td>
                   <td className="px-4 py-2.5 text-center">
-                    <input type="checkbox" checked={!!col.is_terminal}
-                      onChange={(e) => handleToggleColumnFlag(col.id, 'is_terminal', e.target.checked)}
+                    <input type="radio" name="terminal_col" checked={!!col.is_terminal}
+                      onChange={() => handleToggleColumnFlag(col.id, 'is_terminal', true)}
                       className="accent-success" />
                   </td>
                   <td className="px-4 py-2.5">

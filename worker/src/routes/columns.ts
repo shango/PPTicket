@@ -78,12 +78,14 @@ columnRoutes.patch('/:id', requireRole('admin'), async (c) => {
     values.push(body.is_initial ? 1 : 0);
   }
 
-  // Handle is_terminal
+  // Handle is_terminal — only one column can be terminal
   if (body.is_terminal !== undefined) {
-    if (!body.is_terminal) {
+    if (body.is_terminal) {
+      await c.env.DB.prepare('UPDATE columns SET is_terminal = 0').run();
+    } else {
       const count = await c.env.DB.prepare('SELECT COUNT(*) as count FROM columns WHERE is_terminal = 1 AND id != ?').bind(id).first<{ count: number }>();
       if (!count || count.count === 0) {
-        return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'At least one column must be a terminal column.' } }, 403);
+        return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'At least one column must be the terminal column.' } }, 403);
       }
     }
     updates.push('is_terminal = ?');

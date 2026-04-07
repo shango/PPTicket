@@ -11,9 +11,10 @@ interface Props {
   onTicketClick: (ticket: TicketWithMeta) => void;
   isDraggable: boolean;
   ticketSize?: 'small' | 'large';
+  isTerminal?: boolean;
 }
 
-export function KanbanColumn({ status, label, color, tickets, onTicketClick, isDraggable, ticketSize }: Props) {
+export function KanbanColumn({ status, label, color, tickets, onTicketClick, isDraggable, ticketSize, isTerminal }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
@@ -39,6 +40,7 @@ export function KanbanColumn({ status, label, color, tickets, onTicketClick, isD
               onClick={() => onTicketClick(ticket)}
               isDraggable={isDraggable}
               size={ticketSize}
+              isTerminal={isTerminal}
             />
           ))}
         </SortableContext>
