@@ -17,6 +17,7 @@ import { api, type TicketWithMeta, type Project, type Column } from '../lib/api'
 import { KanbanColumn } from '../components/KanbanColumn';
 import { TicketCard } from '../components/TicketCard';
 import { TicketDetailModal } from '../components/TicketDetailModal';
+import { TicketListView } from '../components/TicketListView';
 
 export function BoardPage() {
   const user = useStore((s) => s.user);
@@ -32,6 +33,7 @@ export function BoardPage() {
   const [projectFilter, setProductFilter] = useState<string>('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [myTickets, setMyTickets] = useState(false);
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
 
   const canDrag = user ? ['dev', 'admin'].includes(user.role) : false;
 
@@ -259,45 +261,81 @@ export function BoardPage() {
             All Tickets
           </button>
         )}
+
+        <div className="ml-auto" />
+
+        {/* View toggle */}
+        <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5">
+          <button
+            onClick={() => setViewMode('board')}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+            title="Board view"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="21" x2="8" y2="3"/><line x1="16" y1="21" x2="16" y2="3"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+            title="List view"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto px-4 py-4">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={collisionDetection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-3 h-full min-w-min">
-            {columns.map((col) => (
-              <KanbanColumn
-                key={col.slug}
-                status={col.slug}
-                label={col.name}
-                color={col.color}
-                tickets={columnTickets[col.slug] || []}
-                onTicketClick={(t) => setSelectedTicket(t)}
-                isDraggable={canDrag}
-                ticketSize={user?.ticket_size || 'large'}
-                isTerminal={!!col.is_terminal}
-              />
-            ))}
-          </div>
+      {/* Board or List */}
+      {viewMode === 'board' ? (
+        <div className="flex-1 overflow-x-auto px-4 py-4">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={collisionDetection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-3 h-full min-w-min">
+              {columns.map((col) => (
+                <KanbanColumn
+                  key={col.slug}
+                  status={col.slug}
+                  label={col.name}
+                  color={col.color}
+                  tickets={columnTickets[col.slug] || []}
+                  onTicketClick={(t) => setSelectedTicket(t)}
+                  isDraggable={canDrag}
+                  ticketSize={user?.ticket_size || 'large'}
+                  isTerminal={!!col.is_terminal}
+                />
+              ))}
+            </div>
 
-          <DragOverlay>
-            {activeTicket ? (
-              <TicketCard
-                ticket={activeTicket}
-                onClick={() => {}}
-                isDraggable={false}
-                size={user?.ticket_size || 'large'}
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </div>
+            <DragOverlay>
+              {activeTicket ? (
+                <TicketCard
+                  ticket={activeTicket}
+                  onClick={() => {}}
+                  isDraggable={false}
+                  size={user?.ticket_size || 'large'}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto px-4 py-4">
+          <TicketListView
+            tickets={filteredTickets}
+            columns={columns}
+            canEdit={canDrag}
+            onTicketClick={(t) => setSelectedTicket(t)}
+            onUpdate={() => fetchTickets()}
+          />
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedTicket && (
