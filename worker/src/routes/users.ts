@@ -251,11 +251,16 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
   const permanent = c.req.query('permanent') === 'true';
 
   if (permanent) {
-    // Clean up direct references; ticket submitter_id and comment author_id are left
-    // as dangling references — queries use LEFT JOIN so they show as "Deleted User"
+    // Clean up all references before deleting the user row
     await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM ticket_last_seen WHERE user_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM comments WHERE author_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM attachments WHERE uploader_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM audit_log WHERE actor_id = ?').bind(id).run();
+    await c.env.DB.prepare('UPDATE products SET default_owner_id = NULL WHERE default_owner_id = ?').bind(id).run();
+    // Re-assign tickets to the admin performing the deletion (submitter_id is NOT NULL)
+    await c.env.DB.prepare('UPDATE tickets SET submitter_id = ? WHERE submitter_id = ?').bind(currentUser.id, id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }

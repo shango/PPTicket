@@ -31,7 +31,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error('Unauthorized');
   }
 
-  const json = await res.json() as { data: T; error: { code: string; message: string } | null };
+  let json: { data: T; error: { code: string; message: string } | null };
+  try {
+    json = await res.json();
+  } catch {
+    throw new Error(`Server error (${res.status})`);
+  }
 
   if (json.error) {
     throw new Error(json.error.message);
