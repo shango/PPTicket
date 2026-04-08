@@ -70,7 +70,7 @@ export function SetupPage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
               className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
-              placeholder="you@pdoexperts.fb.com"
+              placeholder="you@example.com"
             />
           </div>
           <div>

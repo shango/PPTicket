@@ -44,7 +44,7 @@ export function ProfilePage() {
   const [pwLoading, setPwLoading] = useState(false);
 
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', email: '' });
+  const [profileForm, setProfileForm] = useState({ first_name: '', last_name: '', email: '', notification_email: '' });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState('');
 
@@ -125,6 +125,7 @@ export function ProfilePage() {
       first_name: user!.first_name || '',
       last_name: user!.last_name || '',
       email: user!.email,
+      notification_email: user!.notification_email || '',
     });
     setProfileError('');
     setEditingProfile(true);
@@ -134,10 +135,13 @@ export function ProfilePage() {
     setProfileSaving(true);
     setProfileError('');
     try {
-      const updates: { first_name?: string; last_name?: string; email?: string } = {};
+      const updates: { first_name?: string; last_name?: string; email?: string; notification_email?: string | null } = {};
       if (profileForm.first_name !== (user!.first_name || '')) updates.first_name = profileForm.first_name;
       if (profileForm.last_name !== (user!.last_name || '')) updates.last_name = profileForm.last_name;
       if (profileForm.email !== user!.email) updates.email = profileForm.email;
+      if (profileForm.notification_email !== (user!.notification_email || '')) {
+        updates.notification_email = profileForm.notification_email || null;
+      }
       if (Object.keys(updates).length > 0) {
         await api.updateProfile(updates);
         await fetchUser();
@@ -169,6 +173,9 @@ export function ProfilePage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[15px] font-semibold text-text-primary">{user.name}</p>
                   <p className="text-[13px] text-text-muted mt-0.5">{user.email}</p>
+              {user.notification_email && (
+                <p className="text-[12px] text-text-muted mt-0.5">Notifications: {user.notification_email}</p>
+              )}
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium capitalize">
                       {user.role.replace('_', ' ')}
@@ -226,11 +233,20 @@ export function ProfilePage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Email</label>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Work Email</label>
                 <input
                   type="email" value={profileForm.email}
                   onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                   className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1.5 font-medium">Notification Email</label>
+                <input
+                  type="email" value={profileForm.notification_email}
+                  onChange={(e) => setProfileForm({ ...profileForm, notification_email: e.target.value })}
+                  className="w-full bg-bg-elevated border border-border rounded-lg px-3 py-2 text-sm"
+                  placeholder="Personal email for notifications (optional)"
                 />
               </div>
               <div className="flex gap-2 pt-1">

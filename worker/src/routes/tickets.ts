@@ -135,13 +135,13 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   }
 
   // Notify project default owner + all admins (respecting email preferences)
-  const adminEmails = await c.env.DB.prepare("SELECT email FROM users WHERE role = 'admin' AND notify_ticket_created = 1").all<{ email: string }>();
-  const toEmails = new Set(adminEmails.results.map(r => r.email));
+  const adminEmails = await c.env.DB.prepare("SELECT email, notification_email FROM users WHERE role = 'admin' AND notify_ticket_created = 1").all<{ email: string; notification_email: string | null }>();
+  const toEmails = new Set(adminEmails.results.map(r => r.notification_email || r.email));
 
   // Add assignees who opted in
   for (const aid of assigneeIds) {
-    const assigneeEmail = await c.env.DB.prepare('SELECT email, notify_ticket_created FROM users WHERE id = ?').bind(aid).first<{ email: string; notify_ticket_created: number }>();
-    if (assigneeEmail?.notify_ticket_created) toEmails.add(assigneeEmail.email);
+    const assigneeEmail = await c.env.DB.prepare('SELECT email, notification_email, notify_ticket_created FROM users WHERE id = ?').bind(aid).first<{ email: string; notification_email: string | null; notify_ticket_created: number }>();
+    if (assigneeEmail?.notify_ticket_created) toEmails.add(assigneeEmail.notification_email || assigneeEmail.email);
   }
 
   if (toEmails.size > 0) {
@@ -302,10 +302,10 @@ ticketRoutes.patch('/:id', async (c) => {
     // Notify newly added assignees only (respecting email preferences)
     const newAssignees = body.assignee_ids.filter(uid => !currentIds.has(uid));
     for (const assigneeUserId of newAssignees) {
-      const assignee = await c.env.DB.prepare('SELECT email, notify_ticket_assigned FROM users WHERE id = ?').bind(assigneeUserId).first<{ email: string; notify_ticket_assigned: number }>();
+      const assignee = await c.env.DB.prepare('SELECT email, notification_email, notify_ticket_assigned FROM users WHERE id = ?').bind(assigneeUserId).first<{ email: string; notification_email: string | null; notify_ticket_assigned: number }>();
       if (assignee?.notify_ticket_assigned) {
         const email = ticketAssignedEmail(ticket.ticket_number, ticket.title, ticket.priority, ticket.edc, c.env.FRONTEND_URL);
-        c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.email], ...email }));
+        c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [assignee.notification_email || assignee.email], ...email }));
       }
     }
 
@@ -385,10 +385,10 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
 
   // Notify submitter when moved to a terminal column (respecting email preferences)
   if (column.is_terminal && ticket.status !== status) {
-    const submitter = await c.env.DB.prepare('SELECT email, notify_ticket_done FROM users WHERE id = ?').bind(ticket.submitter_id).first<{ email: string; notify_ticket_done: number }>();
+    const submitter = await c.env.DB.prepare('SELECT email, notification_email, notify_ticket_done FROM users WHERE id = ?').bind(ticket.submitter_id).first<{ email: string; notification_email: string | null; notify_ticket_done: number }>();
     if (submitter?.notify_ticket_done) {
       const email = ticketStatusEmail(ticket.ticket_number, ticket.title, status, c.env.FRONTEND_URL);
-      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [submitter.email], ...email }));
+      c.executionCtx.waitUntil(sendEmail(c.env.EMAIL_API_KEY, { to: [submitter.notification_email || submitter.email], ...email }));
     }
     const statusLabel = status === 'in_review' ? 'in review' : status;
     c.executionCtx.waitUntil(sendPushToUser(c.env.DB, ticket.submitter_id, {
@@ -462,16 +462,16 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   // Notify all assignees + project default owner + @mentioned users (excluding the comment author, respecting email preferences)
   const toEmails = new Set<string>();
   const ticketAssignees = await c.env.DB.prepare(
-    'SELECT ta.user_id, u.email, u.notify_ticket_comment FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
-  ).bind(ticketId).all<{ user_id: string; email: string; notify_ticket_comment: number }>();
+    'SELECT ta.user_id, u.email, u.notification_email, u.notify_ticket_comment FROM ticket_assignees ta JOIN users u ON ta.user_id = u.id WHERE ta.ticket_id = ?'
+  ).bind(ticketId).all<{ user_id: string; email: string; notification_email: string | null; notify_ticket_comment: number }>();
   for (const a of ticketAssignees.results) {
-    if (a.user_id !== user.id && a.notify_ticket_comment) toEmails.add(a.email);
+    if (a.user_id !== user.id && a.notify_ticket_comment) toEmails.add(a.notification_email || a.email);
   }
   if (ticket.product_id) {
     const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(ticket.product_id).first<{ default_owner_id: string | null }>();
     if (project?.default_owner_id && project.default_owner_id !== user.id) {
-      const owner = await c.env.DB.prepare('SELECT email, notify_ticket_comment FROM users WHERE id = ?').bind(project.default_owner_id).first<{ email: string; notify_ticket_comment: number }>();
-      if (owner?.notify_ticket_comment) toEmails.add(owner.email);
+      const owner = await c.env.DB.prepare('SELECT email, notification_email, notify_ticket_comment FROM users WHERE id = ?').bind(project.default_owner_id).first<{ email: string; notification_email: string | null; notify_ticket_comment: number }>();
+      if (owner?.notify_ticket_comment) toEmails.add(owner.notification_email || owner.email);
     }
   }
 
@@ -481,10 +481,10 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
     const mentionNames = mentionMatches.map(m => m.slice(1).trim()).filter(Boolean);
     for (const name of mentionNames) {
       const mentioned = await c.env.DB.prepare(
-        "SELECT id, email, notify_ticket_comment FROM users WHERE name = ? AND role != 'suspended'"
-      ).bind(name).all<{ id: string; email: string; notify_ticket_comment: number }>();
+        "SELECT id, email, notification_email, notify_ticket_comment FROM users WHERE name = ? AND role != 'suspended'"
+      ).bind(name).all<{ id: string; email: string; notification_email: string | null; notify_ticket_comment: number }>();
       for (const m of mentioned.results) {
-        if (m.id !== user.id && m.notify_ticket_comment) toEmails.add(m.email);
+        if (m.id !== user.id && m.notify_ticket_comment) toEmails.add(m.notification_email || m.email);
       }
     }
   }

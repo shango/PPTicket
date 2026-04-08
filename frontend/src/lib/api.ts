@@ -46,10 +46,8 @@ export const api = {
     request<{ token: string; must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   setup: (data: { email: string; password: string; first_name: string; last_name: string }) =>
     request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
-  changePassword: (current_password: string, new_password: string) =>
-    request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password }) }),
-  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
-    request<{ token: string; user: User }>('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  changePassword: (current_password: string, new_password: string, notification_email?: string) =>
+    request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password, ...(notification_email ? { notification_email } : {}) }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Users
@@ -59,7 +57,7 @@ export const api = {
     request<{ theme: string }>('/api/v1/users/me/theme', { method: 'PATCH', body: JSON.stringify({ theme }) }),
   updateTicketSize: (ticket_size: 'small' | 'large') =>
     request<{ ticket_size: string }>('/api/v1/users/me/ticket-size', { method: 'PATCH', body: JSON.stringify({ ticket_size }) }),
-  updateProfile: (data: { first_name?: string; last_name?: string; email?: string }) =>
+  updateProfile: (data: { first_name?: string; last_name?: string; email?: string; notification_email?: string | null }) =>
     request<{ message: string }>('/api/v1/users/me/profile', { method: 'PATCH', body: JSON.stringify(data) }),
   getUserNames: () => request<{ id: string; name: string }[]>('/api/v1/users/names'),
   createUser: (data: { email: string; first_name: string; last_name: string; password: string; role?: string }) =>
@@ -152,6 +150,7 @@ export interface User {
   must_change_password: number;
   theme: 'dark' | 'light';
   ticket_size: 'small' | 'large';
+  notification_email: string | null;
   notify_ticket_created: number;
   notify_ticket_assigned: number;
   notify_ticket_done: number;

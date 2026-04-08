@@ -24,6 +24,7 @@ export interface User {
   must_change_password: number;
   theme: string;
   ticket_size: string;
+  notification_email: string | null;
   notify_ticket_created: number;
   notify_ticket_assigned: number;
   notify_ticket_done: number;

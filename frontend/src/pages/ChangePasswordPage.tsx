@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function ChangePasswordPage() {
-  const [form, setForm] = useState({ current: '', new: '', confirm: '' });
+  const [form, setForm] = useState({ current: '', new: '', confirm: '', notificationEmail: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const setMustChangePassword = useStore((s) => s.setMustChangePassword);
@@ -21,7 +21,7 @@ export function ChangePasswordPage() {
 
     setLoading(true);
     try {
-      await api.changePassword(form.current, form.new);
+      await api.changePassword(form.current, form.new, form.notificationEmail || undefined);
       setMustChangePassword(false);
       navigate('/board', { replace: true });
     } catch (e: any) {
@@ -36,7 +36,7 @@ export function ChangePasswordPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-semibold text-accent mb-2">PDO Kanban</h1>
-          <p className="text-text-muted">Please set a new password to continue</p>
+          <p className="text-text-muted">Set a new password and add a personal email for notifications</p>
         </div>
 
         {error && (
@@ -79,6 +79,19 @@ export function ChangePasswordPage() {
               minLength={8}
               className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm"
             />
+          </div>
+          <div className="pt-2 border-t border-border-subtle">
+            <label className="text-sm text-text-muted block mb-1">Personal Email for Notifications</label>
+            <input
+              type="email"
+              value={form.notificationEmail}
+              onChange={(e) => setForm({ ...form, notificationEmail: e.target.value })}
+              className="w-full bg-bg-elevated border border-zinc-700 rounded px-3 py-2 text-sm"
+              placeholder="you@gmail.com (optional)"
+            />
+            <p className="text-[11px] text-text-muted mt-1.5">
+              Ticket notifications will be sent here instead of your work email
+            </p>
           </div>
           <button
             type="submit"

@@ -39,7 +39,7 @@ userRoutes.patch('/me/ticket-size', async (c) => {
 // PATCH /api/v1/users/me/profile
 userRoutes.patch('/me/profile', async (c) => {
   const user = c.get('user');
-  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string }>();
+  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string; notification_email?: string | null }>();
 
   const updates: string[] = [];
   const values: any[] = [];
@@ -65,6 +65,17 @@ userRoutes.patch('/me/profile', async (c) => {
     const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(normalizedEmail, user.id).first();
     if (dup) return c.json({ data: null, error: { code: 'CONFLICT', message: 'Email already in use.' } }, 409);
     updates.push('email = ?'); values.push(normalizedEmail);
+  }
+  if (body.notification_email !== undefined) {
+    if (body.notification_email === null || body.notification_email === '') {
+      updates.push('notification_email = NULL');
+    } else {
+      const ne = body.notification_email.toLowerCase().trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ne)) {
+        return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid notification email format.' } }, 400);
+      }
+      updates.push('notification_email = ?'); values.push(ne);
+    }
   }
 
   if (updates.length === 0) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No fields to update.' } }, 400);
@@ -240,11 +251,11 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
   const permanent = c.req.query('permanent') === 'true';
 
   if (permanent) {
-    // Clean up references — nullify submitter so tickets are preserved with "Deleted User"
+    // Clean up direct references; ticket submitter_id and comment author_id are left
+    // as dangling references — queries use LEFT JOIN so they show as "Deleted User"
     await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE user_id = ?').bind(id).run();
-    await c.env.DB.prepare('UPDATE tickets SET submitter_id = NULL WHERE submitter_id = ?').bind(id).run();
-    await c.env.DB.prepare('UPDATE comments SET author_id = NULL WHERE author_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id).run();
+    await c.env.DB.prepare('DELETE FROM ticket_last_seen WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
     return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }
