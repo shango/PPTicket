@@ -142,6 +142,11 @@ export const api = {
   deleteColumn: (id: string) =>
     request(`/api/v1/columns/${id}`, { method: 'DELETE' }),
 
+  // Settings (admin)
+  getSettings: () => request<Record<string, string>>('/api/v1/settings'),
+  updateSettings: (data: Record<string, string>) =>
+    request<Record<string, string>>('/api/v1/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+
   // Email preferences
   updateEmailPreferences: (prefs: Partial<{ notify_ticket_created: boolean; notify_ticket_assigned: boolean; notify_ticket_done: boolean; notify_ticket_comment: boolean; notify_user_registered: boolean }>) =>
     request<{ message: string }>('/api/v1/users/me/email-preferences', { method: 'PATCH', body: JSON.stringify(prefs) }),

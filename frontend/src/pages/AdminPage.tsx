@@ -36,6 +36,9 @@ export function AdminPage() {
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
   const [editColumnForm, setEditColumnForm] = useState({ name: '', color: '#5f6270' });
   const [editColumnError, setEditColumnError] = useState('');
+  const [archiveDays, setArchiveDays] = useState('7');
+  const [archiveDaysSaved, setArchiveDaysSaved] = useState('7');
+  const [archiveSaving, setArchiveSaving] = useState(false);
 
   async function fetchUsers() {
     try { setUsers(await api.getUsers()); } catch (e: any) { setError(e.message); } finally { setLoading(false); }
@@ -47,7 +50,14 @@ export function AdminPage() {
     try { setColumns(await api.getColumns()); } catch {}
   }
 
-  useEffect(() => { fetchUsers(); fetchProjects(); fetchColumns(); }, []);
+  async function fetchSettings() {
+    try {
+      const s = await api.getSettings();
+      if (s.archive_after_days) { setArchiveDays(s.archive_after_days); setArchiveDaysSaved(s.archive_after_days); }
+    } catch {}
+  }
+
+  useEffect(() => { fetchUsers(); fetchProjects(); fetchColumns(); fetchSettings(); }, []);
 
   function openEditUser(u: User) {
     setEditingUser(u);
@@ -518,6 +528,46 @@ export function AdminPage() {
         <p className="text-[11px] text-text-muted mt-2">
           <strong>Initial</strong> = new tickets land here. <strong>Done</strong> = triggers completion notification to submitter.
         </p>
+      </div>
+
+      {/* Settings */}
+      <div className="mb-10">
+        <h2 className="text-base font-semibold text-text-primary mb-4">Settings</h2>
+        <div className="bg-bg-surface border border-border-subtle rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] text-text-primary font-medium">Auto-archive after</p>
+              <p className="text-[11px] text-text-muted mt-0.5">Tickets in the Done column will be automatically archived after this many days.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={365}
+                value={archiveDays}
+                onChange={(e) => setArchiveDays(e.target.value)}
+                className="w-20 bg-bg-elevated border border-border rounded-lg px-3 py-1.5 text-[13px] text-center"
+              />
+              <span className="text-[13px] text-text-muted">days</span>
+              {archiveDays !== archiveDaysSaved && (
+                <button
+                  onClick={async () => {
+                    setArchiveSaving(true);
+                    try {
+                      await api.updateSettings({ archive_after_days: archiveDays });
+                      setArchiveDaysSaved(archiveDays);
+                    } catch (e: any) { alert(e.message); }
+                    setArchiveSaving(false);
+                  }}
+                  disabled={archiveSaving}
+                  className="text-[12px] px-3 py-1.5 bg-accent text-white rounded-lg font-medium hover:bg-accent-hover disabled:opacity-50"
+                >
+                  {archiveSaving ? 'Saving...' : 'Save'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Edit User Modal */}
