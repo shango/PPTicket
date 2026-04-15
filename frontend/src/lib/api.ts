@@ -97,8 +97,8 @@ export const api = {
 
   // Comments
   getComments: (ticketId: string) => request<Comment[]>(`/api/v1/tickets/${ticketId}/comments`),
-  addComment: (ticketId: string, body: string) =>
-    request<Comment>(`/api/v1/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+  addComment: (ticketId: string, body: string, attachment_ids?: string[]) =>
+    request<Comment>(`/api/v1/tickets/${ticketId}/comments`, { method: 'POST', body: JSON.stringify({ body, attachment_ids }) }),
   editComment: (id: string, body: string) =>
     request<Comment>(`/api/v1/comments/${id}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
   deleteComment: (id: string) =>
@@ -114,6 +114,15 @@ export const api = {
     request<Attachment>(`/api/v1/tickets/${ticketId}/attachments`, { method: 'POST', body: JSON.stringify(data) }),
   deleteAttachment: (id: string) =>
     request(`/api/v1/attachments/${id}`, { method: 'DELETE' }),
+  getAllAttachments: (productId?: string) => {
+    const qs = productId ? `?product=${productId}` : '';
+    return request<AttachmentWithTicket[]>(`/api/v1/attachments${qs}`);
+  },
+  attachmentDownloadUrl: (id: string) => {
+    const token = getToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${BASE}/api/v1/attachments/${id}/download${tokenParam}`;
+  },
 
   // Subtasks
   getSubtasks: (ticketId: string) => request<SubTask[]>(`/api/v1/tickets/${ticketId}/subtasks`),
@@ -233,6 +242,7 @@ export interface Comment {
   author_name: string | null;
   author_avatar: string | null;
   body: string;
+  attachments: Attachment[];
   created_at: number;
   updated_at: number | null;
 }
@@ -247,6 +257,14 @@ export interface Attachment {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: number;
+}
+
+export interface AttachmentWithTicket extends Attachment {
+  ticket_number: number;
+  ticket_title: string;
+  product_name: string | null;
+  product_abbreviation: string | null;
+  product_color: string | null;
 }
 
 export interface SubTask {

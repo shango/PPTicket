@@ -77,6 +77,7 @@ export interface Attachment {
   id: string;
   ticket_id: string;
   subtask_id: string | null;
+  comment_id: string | null;
   uploader_id: string;
   filename: string;
   url: string;

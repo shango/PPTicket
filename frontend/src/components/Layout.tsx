@@ -54,6 +54,7 @@ export function Layout() {
           <nav className="flex gap-0.5">
             <NavLink to="/board" className={navLinkClass}>Board</NavLink>
             {canSubmit && <NavLink to="/submit" className={navLinkClass}>New Ticket</NavLink>}
+            <NavLink to="/attachments" className={navLinkClass}>Files</NavLink>
             {canArchive && <NavLink to="/archive" className={navLinkClass}>Archive</NavLink>}
           </nav>
         </div>

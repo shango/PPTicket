@@ -488,6 +488,23 @@ ticketRoutes.get('/:id/comments', async (c) => {
     'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.ticket_id = ? ORDER BY c.created_at ASC'
   ).bind(id).all();
 
+  // Fetch attachments for all comments in this ticket
+  const commentAttachments = await c.env.DB.prepare(
+    'SELECT a.*, u.name as uploader_name FROM attachments a JOIN users u ON a.uploader_id = u.id WHERE a.comment_id IS NOT NULL AND a.ticket_id = ? ORDER BY a.created_at ASC'
+  ).bind(id).all();
+
+  // Group attachments by comment_id
+  const attByComment: Record<string, any[]> = {};
+  for (const att of commentAttachments.results as any[]) {
+    if (!attByComment[att.comment_id]) attByComment[att.comment_id] = [];
+    attByComment[att.comment_id].push(att);
+  }
+
+  const comments = (result.results as any[]).map(c => ({
+    ...c,
+    attachments: attByComment[c.id] || [],
+  }));
+
   // Track that user has seen this ticket's comments (for first-only push suppression)
   if (user) {
     const now = Math.floor(Date.now() / 1000);
@@ -498,17 +515,18 @@ ticketRoutes.get('/:id/comments', async (c) => {
     );
   }
 
-  return c.json({ data: result.results, error: null });
+  return c.json({ data: comments, error: null });
 });
 
 // POST /api/v1/tickets/:id/comments
 ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const user = c.get('user');
   const { id: ticketId } = c.req.param();
-  const { body } = await c.req.json<{ body: string }>();
+  const { body, attachment_ids } = await c.req.json<{ body: string; attachment_ids?: string[] }>();
 
-  if (!body || body.trim().length === 0) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Comment body is required.' } }, 400);
+  const hasAttachments = attachment_ids && attachment_ids.length > 0;
+  if ((!body || body.trim().length === 0) && !hasAttachments) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Comment body or attachment is required.' } }, 400);
   }
 
   const ticket = await c.env.DB.prepare('SELECT id, ticket_number, title, product_id FROM tickets WHERE id = ?').bind(ticketId).first<{ id: string; ticket_number: number; title: string; product_id: string | null }>();
@@ -520,7 +538,15 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   const now = Math.floor(Date.now() / 1000);
   await c.env.DB.prepare(
     'INSERT INTO comments (id, ticket_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, ticketId, user.id, body, now).run();
+  ).bind(id, ticketId, user.id, body || '', now).run();
+
+  // Link attachments to this comment
+  if (hasAttachments) {
+    await Promise.all(attachment_ids!.map(attId =>
+      c.env.DB.prepare('UPDATE attachments SET comment_id = ? WHERE id = ? AND ticket_id = ? AND uploader_id = ?')
+        .bind(id, attId, ticketId, user.id).run()
+    ));
+  }
 
   // Notify all assignees + project default owner + @mentioned users (excluding the comment author, respecting email preferences)
   const toEmails = new Set<string>();
@@ -605,7 +631,13 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   const comment = await c.env.DB.prepare(
     'SELECT c.*, u.name as author_name, u.avatar_url as author_avatar FROM comments c LEFT JOIN users u ON c.author_id = u.id WHERE c.id = ?'
   ).bind(id).first();
-  return c.json({ data: comment, error: null }, 201);
+
+  // Fetch any attachments linked to this comment
+  const commentAtts = await c.env.DB.prepare(
+    'SELECT a.*, u.name as uploader_name FROM attachments a JOIN users u ON a.uploader_id = u.id WHERE a.comment_id = ?'
+  ).bind(id).all();
+
+  return c.json({ data: { ...comment, attachments: commentAtts.results }, error: null }, 201);
 });
 
 // POST /api/v1/tickets/:id/attachments/upload-url

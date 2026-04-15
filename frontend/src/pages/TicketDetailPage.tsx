@@ -232,6 +232,9 @@ export function TicketDetailPage() {
   }
 
   const [commentError, setCommentError] = useState('');
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [commentUploading, setCommentUploading] = useState(false);
+  const commentFileRef = useRef<HTMLInputElement>(null);
   const [mentionUsers, setMentionUsers] = useState<{ id: string; name: string }[]>([]);
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -290,14 +293,36 @@ export function TicketDetailPage() {
   }
 
   async function handleAddComment() {
-    if (!newComment.trim() || !ticket) return;
+    if ((!newComment.trim() && commentFiles.length === 0) || !ticket) return;
     setCommentError('');
+    setCommentUploading(true);
     try {
-      const comment = await api.addComment(ticket.id, newComment);
+      // Upload all pending files first
+      const attachmentIds: string[] = [];
+      for (const file of commentFiles) {
+        const { key, upload_url } = await api.getUploadUrl(ticket.id, file.name, file.type);
+        const token = getToken();
+        const BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const IS_CROSS_ORIGIN = !!BASE;
+        await fetch(`${BASE}${upload_url}`, {
+          method: 'PUT',
+          credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
+          headers: { 'Content-Type': file.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: file,
+        });
+        const att = await api.registerAttachment(ticket.id, {
+          filename: file.name, url: key, mime_type: file.type, size_bytes: file.size,
+        });
+        attachmentIds.push(att.id);
+      }
+      const comment = await api.addComment(ticket.id, newComment, attachmentIds.length > 0 ? attachmentIds : undefined);
       setComments([...comments, comment]);
       setNewComment('');
+      setCommentFiles([]);
     } catch (e: any) {
       setCommentError(e.message || 'Failed to add comment.');
+    } finally {
+      setCommentUploading(false);
     }
   }
 
@@ -751,7 +776,32 @@ export function TicketDetailPage() {
                         {new Date(comment.created_at * 1000).toLocaleString()}
                       </span>
                     </div>
-                    <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{renderCommentBody(comment.body)}</p>
+                    {comment.body && (
+                      <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{renderCommentBody(comment.body)}</p>
+                    )}
+                    {comment.attachments && comment.attachments.length > 0 && (
+                      <div className="pl-7 mt-2 space-y-1">
+                        {comment.attachments.map(att => (
+                          <a key={att.id} href={api.attachmentDownloadUrl(att.id)} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-2.5 py-1.5 bg-bg-surface border border-border-subtle rounded-lg hover:border-border transition-colors group">
+                            <svg className="w-4 h-4 text-text-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                            <span className="text-[12px] text-text-secondary truncate flex-1">{att.filename}</span>
+                            {att.size_bytes && (
+                              <span className="text-[10px] text-text-muted flex-shrink-0">
+                                {att.size_bytes < 1024 ? `${att.size_bytes} B` :
+                                 att.size_bytes < 1048576 ? `${(att.size_bytes / 1024).toFixed(1)} KB` :
+                                 `${(att.size_bytes / 1048576).toFixed(1)} MB`}
+                              </span>
+                            )}
+                            <svg className="w-3.5 h-3.5 text-text-muted group-hover:text-accent flex-shrink-0 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {comments.length === 0 && (
@@ -767,20 +817,56 @@ export function TicketDetailPage() {
                     </div>
                   )}
                   <div className="relative">
+                    {/* Pending attachment cards */}
+                    {commentFiles.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {commentFiles.map((file, i) => (
+                          <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-bg-elevated border border-border-subtle rounded-lg text-[12px] text-text-secondary">
+                            <svg className="w-3.5 h-3.5 text-text-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                            <span className="truncate max-w-[150px]">{file.name}</span>
+                            <button onClick={() => setCommentFiles(commentFiles.filter((_, j) => j !== i))}
+                              className="text-text-muted hover:text-danger flex-shrink-0">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex gap-2">
-                      <textarea
-                        ref={commentRef}
-                        value={newComment}
-                        onChange={handleCommentChange}
-                        onKeyDown={handleCommentKeyDown}
-                        placeholder="Write a comment... Use @ to mention someone"
-                        rows={2}
-                        className={`flex-1 ${fieldInput} resize-none`}
-                      />
-                      <button onClick={handleAddComment}
-                        className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover self-end">
-                        Send
-                      </button>
+                      <div className="flex-1 flex flex-col gap-1.5">
+                        <textarea
+                          ref={commentRef}
+                          value={newComment}
+                          onChange={handleCommentChange}
+                          onKeyDown={handleCommentKeyDown}
+                          placeholder="Write a comment... Use @ to mention someone"
+                          rows={4}
+                          className={`w-full ${fieldInput} resize-none`}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1 self-end">
+                        <label className="p-1.5 rounded-lg bg-bg-elevated border border-border text-text-muted hover:text-text-secondary hover:bg-bg-hover cursor-pointer transition-colors" title="Attach file">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                          </svg>
+                          <input ref={commentFileRef} type="file" className="hidden" multiple
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              const valid = files.filter(f => f.size <= 10 * 1024 * 1024);
+                              if (valid.length < files.length) setCommentError('Some files exceed 10MB limit.');
+                              setCommentFiles(prev => [...prev, ...valid]);
+                              e.target.value = '';
+                            }} />
+                        </label>
+                        <button onClick={handleAddComment} disabled={commentUploading}
+                          className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover disabled:opacity-50">
+                          {commentUploading ? '...' : 'Send'}
+                        </button>
+                      </div>
                     </div>
                     {mentionOpen && mentionFiltered.length > 0 && (
                       <div className="absolute bottom-full mb-1 left-0 w-64 bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto z-10">

@@ -13,7 +13,7 @@ declare module 'hono' {
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   // Accept token from Authorization header or cookie
   const authHeader = c.req.header('Authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : getCookie(c, 'session');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : getCookie(c, 'session') || c.req.query('token');
   if (!token) {
     return c.json({ data: null, error: { code: 'UNAUTHORIZED', message: 'Authentication required.' } }, 401);
   }
