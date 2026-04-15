@@ -988,18 +988,18 @@ export function TicketDetailPage() {
                         ))}
                       </div>
                     )}
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <textarea
-                          ref={commentRef}
-                          value={newComment}
-                          onChange={handleCommentChange}
-                          onKeyDown={handleCommentKeyDown}
-                          placeholder="Write a comment... Use @ to mention someone"
-                          rows={4}
-                          className={`w-full ${fieldInput} resize-none pr-9`}
-                        />
-                        <label className="absolute right-2 bottom-2 p-1 rounded text-text-muted hover:text-accent cursor-pointer transition-colors" title="Attach file">
+                    <div className="relative">
+                      <textarea
+                        ref={commentRef}
+                        value={newComment}
+                        onChange={handleCommentChange}
+                        onKeyDown={handleCommentKeyDown}
+                        placeholder="Write a comment... Use @ to mention someone"
+                        rows={4}
+                        className={`w-full ${fieldInput} resize-none pb-10`}
+                      />
+                      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
+                        <label className="p-1 rounded text-text-muted hover:text-accent cursor-pointer transition-colors" title="Attach file">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
                           </svg>
@@ -1012,11 +1012,11 @@ export function TicketDetailPage() {
                               e.target.value = '';
                             }} />
                         </label>
+                        <button onClick={handleAddComment} disabled={commentUploading}
+                          className="px-3 py-1 bg-accent text-white rounded-md text-[12px] font-medium hover:bg-accent-hover disabled:opacity-50">
+                          {commentUploading ? '...' : 'Send'}
+                        </button>
                       </div>
-                      <button onClick={handleAddComment} disabled={commentUploading}
-                        className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover disabled:opacity-50 self-end">
-                        {commentUploading ? '...' : 'Send'}
-                      </button>
                     </div>
                     {mentionOpen && mentionFiltered.length > 0 && (
                       <div className="absolute bottom-full mb-1 left-0 w-64 bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto z-10">
