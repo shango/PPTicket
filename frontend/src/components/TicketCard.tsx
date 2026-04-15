@@ -52,7 +52,7 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       }`}
     >
       {/* Top row: ticket number, product, type, priority */}
-      <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : 'mb-2'}`}>
+      <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : ticket.product_name ? 'mb-0.5' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
           {!isSmall && <span className="text-[11px] text-text-muted font-medium">{new Date(ticket.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</span>}
           {ticket.product_abbreviation && (
