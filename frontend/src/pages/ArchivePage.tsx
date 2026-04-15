@@ -114,6 +114,7 @@ export function ArchivePage() {
                 <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[120px]">Last Status</th>
                 <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[70px]">Priority</th>
                 <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[100px]">Product</th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[110px]">Done</th>
                 <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[110px]">Archived</th>
               </tr>
             </thead>
@@ -177,6 +178,11 @@ export function ArchivePage() {
                     ) : (
                       <span className="text-[12px] text-text-muted">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 text-[12px] text-success">
+                    {ticket.edc
+                      ? new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+                      : '—'}
                   </td>
                   <td className="px-3 py-2 text-[12px] text-text-muted">
                     {ticket.archived_at
