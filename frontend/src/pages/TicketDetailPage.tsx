@@ -112,6 +112,11 @@ export function TicketDetailPage() {
     tags: '',
   });
 
+  const [activeTab, setActiveTab] = useState<'description' | 'attachments'>('description');
+  const [ticketAttachments, setTicketAttachments] = useState<Attachment[]>([]);
+  const [uploadingTicketFile, setUploadingTicketFile] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
   const [subtasks, setSubtasks] = useState<SubTask[]>([]);
   const [showAddSubtask, setShowAddSubtask] = useState(false);
   const [subtaskForm, setSubtaskForm] = useState({ title: '', description: '', due_date: '' });
@@ -153,6 +158,7 @@ export function TicketDetailPage() {
 
     api.getComments(id).then(setComments).catch(() => {});
     api.getSubtasks(id).then(setSubtasks).catch(() => {});
+    api.getAttachments(id).then(setTicketAttachments).catch(() => {});
     api.getProjects().then(setProjects).catch(() => {});
     api.getColumns().then(setStatusColumns).catch(() => {});
   }, [id]);
@@ -412,6 +418,40 @@ export function TicketDetailPage() {
     }
   }
 
+  async function handleTicketFileUpload(files: File[]) {
+    if (!ticket) return;
+    const valid = files.filter(f => f.size <= 10 * 1024 * 1024);
+    if (valid.length === 0) return;
+    setUploadingTicketFile(true);
+    try {
+      for (const file of valid) {
+        const { key, upload_url } = await api.getUploadUrl(ticket.id, file.name, file.type);
+        const token = getToken();
+        const BASE = import.meta.env.VITE_API_BASE_URL || '';
+        const IS_CROSS_ORIGIN = !!BASE;
+        await fetch(`${BASE}${upload_url}`, {
+          method: 'PUT',
+          credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
+          headers: { 'Content-Type': file.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: file,
+        });
+        await api.registerAttachment(ticket.id, {
+          filename: file.name, url: key, mime_type: file.type, size_bytes: file.size,
+        });
+      }
+      const atts = await api.getAttachments(ticket.id);
+      setTicketAttachments(atts);
+    } catch { /* ignore */ }
+    setUploadingTicketFile(false);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) handleTicketFileUpload(files);
+  }
+
   const fieldLabel = "text-[11px] text-text-muted block mb-1 font-medium uppercase tracking-wider";
   const fieldInput = "w-full bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[13px]";
   const fieldValue = "text-[13px] text-text-secondary";
@@ -527,15 +567,127 @@ export function TicketDetailPage() {
               </div>
             )}
 
-            {/* Description */}
+            {/* Description / Attachments tabs */}
             <div className="mb-6 pb-6 border-b border-border-subtle">
-              <label className={`${fieldLabel} mb-2`}>Description</label>
-              {editing ? (
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={6}
-                  className={`${fieldInput} resize-y`} />
-              ) : (
-                <div className="text-[13px] text-text-secondary whitespace-pre-wrap leading-relaxed">
-                  {ticket.description || 'No description.'}
+              <div className="flex gap-0 border-b border-border-subtle mb-4">
+                <button
+                  onClick={() => setActiveTab('description')}
+                  className={`px-3 py-1.5 text-[12px] font-medium border-b-2 transition-colors -mb-px ${
+                    activeTab === 'description'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-muted hover:text-text-secondary'
+                  }`}
+                >
+                  Description
+                </button>
+                <button
+                  onClick={() => setActiveTab('attachments')}
+                  className={`px-3 py-1.5 text-[12px] font-medium border-b-2 transition-colors -mb-px flex items-center gap-1.5 ${
+                    activeTab === 'attachments'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-text-muted hover:text-text-secondary'
+                  }`}
+                >
+                  Attachments
+                  {ticketAttachments.length > 0 && (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                      activeTab === 'attachments' ? 'bg-accent/15' : 'bg-bg-elevated'
+                    }`}>{ticketAttachments.length}</span>
+                  )}
+                </button>
+              </div>
+
+              {activeTab === 'description' && (
+                <>
+                  {editing ? (
+                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={6}
+                      className={`${fieldInput} resize-y`} />
+                  ) : (
+                    <div className="text-[13px] text-text-secondary whitespace-pre-wrap leading-relaxed">
+                      {ticket.description || 'No description.'}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeTab === 'attachments' && (
+                <div>
+                  {/* Drop zone */}
+                  {canComment && (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-lg p-6 mb-4 text-center transition-colors ${
+                        dragOver
+                          ? 'border-accent bg-accent/5'
+                          : 'border-border-subtle hover:border-border'
+                      }`}
+                    >
+                      <svg className="w-8 h-8 text-text-muted mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                      </svg>
+                      <p className="text-[13px] text-text-muted mb-1">
+                        {uploadingTicketFile ? 'Uploading...' : 'Drag files here or'}
+                      </p>
+                      {!uploadingTicketFile && (
+                        <label className="text-[13px] text-accent hover:text-accent-hover cursor-pointer font-medium">
+                          browse
+                          <input type="file" className="hidden" multiple
+                            onChange={(e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (files.length > 0) handleTicketFileUpload(files);
+                              e.target.value = '';
+                            }} />
+                        </label>
+                      )}
+                      <p className="text-[10px] text-text-muted mt-1">Max 10MB per file</p>
+                    </div>
+                  )}
+
+                  {/* Attachment list */}
+                  {ticketAttachments.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {ticketAttachments.map(att => (
+                        <div key={att.id} className="flex items-center gap-2.5 px-3 py-2 bg-bg-elevated rounded-lg group">
+                          <svg className="w-4 h-4 text-text-muted flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                          </svg>
+                          <span className="text-[13px] text-text-primary truncate flex-1">{att.filename}</span>
+                          {att.size_bytes && (
+                            <span className="text-[10px] text-text-muted flex-shrink-0">
+                              {att.size_bytes < 1024 ? `${att.size_bytes} B` :
+                               att.size_bytes < 1048576 ? `${(att.size_bytes / 1024).toFixed(1)} KB` :
+                               `${(att.size_bytes / 1048576).toFixed(1)} MB`}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-text-muted flex-shrink-0">
+                            {new Date(att.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                          </span>
+                          <a href={api.attachmentDownloadUrl(att.id)} target="_blank" rel="noopener noreferrer"
+                            className="p-1 rounded text-text-muted hover:text-accent transition-colors flex-shrink-0" title="Download">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                          </a>
+                          {canComment && (
+                            <button
+                              onClick={async () => {
+                                await api.deleteAttachment(att.id);
+                                setTicketAttachments(prev => prev.filter(a => a.id !== att.id));
+                              }}
+                              className="p-1 rounded text-text-muted hover:text-danger transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100" title="Delete">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-text-muted">No attachments.</p>
+                  )}
                 </div>
               )}
             </div>
@@ -837,7 +989,7 @@ export function TicketDetailPage() {
                       </div>
                     )}
                     <div className="flex gap-2">
-                      <div className="flex-1 flex flex-col gap-1.5">
+                      <div className="flex-1 relative">
                         <textarea
                           ref={commentRef}
                           value={newComment}
@@ -845,11 +997,9 @@ export function TicketDetailPage() {
                           onKeyDown={handleCommentKeyDown}
                           placeholder="Write a comment... Use @ to mention someone"
                           rows={4}
-                          className={`w-full ${fieldInput} resize-none`}
+                          className={`w-full ${fieldInput} resize-none pr-9`}
                         />
-                      </div>
-                      <div className="flex flex-col gap-1 self-end">
-                        <label className="p-1.5 rounded-lg bg-bg-elevated border border-border text-text-muted hover:text-text-secondary hover:bg-bg-hover cursor-pointer transition-colors" title="Attach file">
+                        <label className="absolute right-2 bottom-2 p-1 rounded text-text-muted hover:text-accent cursor-pointer transition-colors" title="Attach file">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
                           </svg>
@@ -862,11 +1012,11 @@ export function TicketDetailPage() {
                               e.target.value = '';
                             }} />
                         </label>
-                        <button onClick={handleAddComment} disabled={commentUploading}
-                          className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover disabled:opacity-50">
-                          {commentUploading ? '...' : 'Send'}
-                        </button>
                       </div>
+                      <button onClick={handleAddComment} disabled={commentUploading}
+                        className="px-3.5 py-1.5 bg-accent text-white rounded-lg text-[13px] font-medium hover:bg-accent-hover disabled:opacity-50 self-end">
+                        {commentUploading ? '...' : 'Send'}
+                      </button>
                     </div>
                     {mentionOpen && mentionFiltered.length > 0 && (
                       <div className="absolute bottom-full mb-1 left-0 w-64 bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto z-10">
