@@ -8,6 +8,16 @@ export const ticketRoutes = new Hono<{ Bindings: Env }>();
 
 // GET /api/v1/tickets
 ticketRoutes.get('/', async (c) => {
+  // Auto-archive tickets in terminal columns for more than 7 days
+  const oneWeekAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  await c.env.DB.prepare(
+    `UPDATE tickets SET archived_at = ?, updated_at = ?
+     WHERE archived_at IS NULL
+       AND status IN (SELECT slug FROM columns WHERE is_terminal = 1)
+       AND updated_at < ?`
+  ).bind(now, now, oneWeekAgo).run();
+
   const status = c.req.query('status');
   const priority = c.req.query('priority');
   const assignee = c.req.query('assignee');
