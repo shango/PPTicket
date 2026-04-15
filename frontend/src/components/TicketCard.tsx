@@ -79,6 +79,11 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
         </div>
       </div>
 
+      {/* Project name — large cards only */}
+      {!isSmall && ticket.product_name && (
+        <p className="text-[11px] text-text-muted mb-1.5">{ticket.product_name}</p>
+      )}
+
       {/* Title */}
       <h3 className={`${isSmall ? 'text-[11px] line-clamp-1 mb-0.5' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
 
