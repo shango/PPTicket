@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   DndContext,
   type DragEndEvent,
@@ -35,7 +35,7 @@ export function BoardPage() {
   const [myTickets, setMyTickets] = useState(false);
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
 
-  const canDrag = user ? ['dev', 'admin'].includes(user.role) : false;
+  const canDrag = user ? ['decision_maker', 'dev', 'admin'].includes(user.role) : false;
 
   const collisionDetection: CollisionDetection = (args) => {
     // Try pointerWithin first — works for empty droppable columns
@@ -50,10 +50,17 @@ export function BoardPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  const draggingRef = useRef(false);
+
   useEffect(() => {
     fetchTickets();
     api.getColumns().then(setColumns).catch(() => {});
     api.getProjects().then(setProjects).catch(() => {});
+
+    const interval = setInterval(() => {
+      if (!draggingRef.current) fetchTickets();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [fetchTickets]);
 
   const filteredTickets = useMemo(() => {
@@ -87,6 +94,7 @@ export function BoardPage() {
   }, [filteredTickets, columns]);
 
   function handleDragStart(event: DragStartEvent) {
+    draggingRef.current = true;
     setActiveId(event.active.id as string);
   }
 
@@ -121,6 +129,7 @@ export function BoardPage() {
   }
 
   async function handleDragEnd(event: DragEndEvent) {
+    draggingRef.current = false;
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
@@ -309,6 +318,7 @@ export function BoardPage() {
                   isDraggable={canDrag}
                   ticketSize={user?.ticket_size || 'large'}
                   isTerminal={!!col.is_terminal}
+                  isInitial={!!col.is_initial}
                 />
               ))}
             </div>

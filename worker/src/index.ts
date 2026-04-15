@@ -42,4 +42,17 @@ app.route('/api/v1', api);
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    // Auto-archive tickets that have been in a terminal column for more than 7 days
+    const oneWeekAgo = Math.floor(Date.now() / 1000) - 7 * 24 * 60 * 60;
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare(
+      `UPDATE tickets SET archived_at = ?, updated_at = ?
+       WHERE archived_at IS NULL
+         AND status IN (SELECT slug FROM columns WHERE is_terminal = 1)
+         AND updated_at < ?`
+    ).bind(now, now, oneWeekAgo).run();
+  },
+};

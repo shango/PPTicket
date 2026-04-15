@@ -90,6 +90,10 @@ export const api = {
     request(`/api/v1/tickets/${id}/move`, { method: 'PATCH', body: JSON.stringify({ status, sort_order }) }),
   deleteTicket: (id: string) =>
     request(`/api/v1/tickets/${id}`, { method: 'DELETE' }),
+  archiveTicket: (id: string) =>
+    request(`/api/v1/tickets/${id}/archive`, { method: 'POST' }),
+  unarchiveTickets: (ids: string[]) =>
+    request<{ restored: number }>('/api/v1/tickets/unarchive', { method: 'POST', body: JSON.stringify({ ids }) }),
 
   // Comments
   getComments: (ticketId: string) => request<Comment[]>(`/api/v1/tickets/${ticketId}/comments`),
@@ -191,6 +195,7 @@ export interface TicketWithMeta {
   sort_order: number;
   created_at: number;
   updated_at: number;
+  archived_at: number | null;
   tags: string[];
 }
 

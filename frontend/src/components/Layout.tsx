@@ -23,6 +23,7 @@ export function Layout() {
   if (!user) return null;
 
   const canSubmit = ['decision_maker', 'dev', 'admin'].includes(user.role);
+  const canArchive = ['dev', 'admin'].includes(user.role);
   const isAdmin = user.role === 'admin';
   const initials = userInitials(user);
 
@@ -53,6 +54,7 @@ export function Layout() {
           <nav className="flex gap-0.5">
             <NavLink to="/board" className={navLinkClass}>Board</NavLink>
             {canSubmit && <NavLink to="/submit" className={navLinkClass}>New Ticket</NavLink>}
+            {canArchive && <NavLink to="/archive" className={navLinkClass}>Archive</NavLink>}
           </nav>
         </div>
 

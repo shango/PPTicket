@@ -8,6 +8,7 @@ import { SubmitPage } from './pages/SubmitPage';
 import { AdminPage } from './pages/AdminPage';
 import { StatsPage } from './pages/StatsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { ArchivePage } from './pages/ArchivePage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
@@ -96,6 +97,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <StatsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/archive"
+            element={
+              <ProtectedRoute allowedRoles={['dev', 'admin']}>
+                <ArchivePage />
               </ProtectedRoute>
             }
           />

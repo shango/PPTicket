@@ -288,6 +288,15 @@ export function TicketDetailModal({ ticket, onClose, onUpdate }: Props) {
               )}
             </div>
             <div className="flex items-center gap-1.5">
+              {canEdit && !editing && !ticket.archived_at && (
+                <button onClick={async () => {
+                  if (!confirm('Archive this ticket? It will be removed from the board.')) return;
+                  try { await api.archiveTicket(ticket.id); onUpdate(); onClose(); } catch { /* ignore */ }
+                }}
+                  className="text-[12px] px-2.5 py-1 rounded-md bg-bg-elevated border border-border text-text-muted hover:text-danger hover:border-danger/30 font-medium transition-colors">
+                  Archive
+                </button>
+              )}
               {canEdit && !editing && (
                 <button onClick={() => setEditing(true)}
                   className="text-[12px] px-2.5 py-1 rounded-md bg-bg-elevated border border-border text-text-secondary hover:text-text-primary hover:bg-bg-hover font-medium">

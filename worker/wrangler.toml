@@ -15,6 +15,9 @@ bucket_name = "pdo-kanban-attachments"
 [vars]
 FRONTEND_URL = "https://pdo-kanban.pages.dev"
 
+[triggers]
+crons = ["0 3 * * *"]  # Run daily at 3:00 AM UTC
+
 # Secrets (set via `wrangler secret put`):
 # JWT_SECRET
 # EMAIL_API_KEY

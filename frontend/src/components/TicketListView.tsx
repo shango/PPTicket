@@ -142,7 +142,7 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
       <table className="w-full border-collapse min-w-[900px]">
         <thead className="sticky top-0 z-10 bg-bg-surface border-b border-border">
           <tr>
-            <SortHeader label="Status" sortKeyName="status" className="w-[100px]" />
+            <SortHeader label="Status" sortKeyName="status" className="w-[120px]" />
             <SortHeader label="Priority" sortKeyName="priority" className="w-[70px]" />
             <SortHeader label="Title" sortKeyName="title" />
             <SortHeader label="Assignees" sortKeyName="assignees" className="w-[160px]" />
@@ -153,17 +153,23 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
         </thead>
         <tbody>
           {sorted.map((ticket) => {
-            const isTerminal = columns.find(c => c.slug === ticket.status)?.is_terminal;
+            const col = columns.find(c => c.slug === ticket.status);
+            const isTerminal = col?.is_terminal;
+            const missingEdc = !ticket.edc && !col?.is_initial && !isTerminal;
             return (
               <tr
                 key={ticket.id}
-                className="border-b border-border-subtle hover:bg-bg-elevated/50 transition-colors group"
+                className={`border-b hover:transition-colors group ${
+                  missingEdc
+                    ? 'bg-danger/[0.04] border-danger/20 hover:bg-danger/[0.08]'
+                    : 'border-border-subtle hover:bg-bg-elevated/50'
+                }`}
                 style={{ borderLeftWidth: 3, borderLeftColor: ticket.product_color || 'transparent' }}
               >
                 {/* Status */}
                 <td className="px-3 py-2" onClick={() => onTicketClick(ticket)}>
                   <span
-                    className="text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1.5"
+                    className="text-[11px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1.5 whitespace-nowrap"
                     style={{ backgroundColor: `${statusColorMap[ticket.status]}15`, color: statusColorMap[ticket.status] }}
                   >
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: statusColorMap[ticket.status] }} />
@@ -243,7 +249,7 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
                     >
                       {ticket.edc
                         ? `${isTerminal ? 'Done' : ''} ${new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
-                        : '—'}
+                        : missingEdc ? <span className="text-danger font-semibold">No EDC</span> : '—'}
                     </span>
                   )}
                 </td>

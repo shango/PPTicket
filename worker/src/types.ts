@@ -49,6 +49,7 @@ export interface Ticket {
   sort_order: number;
   created_at: number;
   updated_at: number;
+  archived_at: number | null;
 }
 
 export interface Comment {

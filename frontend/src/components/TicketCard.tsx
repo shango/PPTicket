@@ -15,9 +15,10 @@ interface Props {
   isDraggable: boolean;
   size?: 'small' | 'large';
   isTerminal?: boolean;
+  isInitial?: boolean;
 }
 
-export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTerminal }: Props) {
+export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTerminal, isInitial }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: ticket.id,
     disabled: !isDraggable,
@@ -33,6 +34,7 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
   };
 
   const isPastEdc = ticket.edc && ticket.edc * 1000 < Date.now();
+  const missingEdc = !ticket.edc && !isInitial && !isTerminal;
 
   const isSmall = size === 'small';
 
@@ -43,7 +45,11 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className={`bg-bg-surface border border-border-subtle border-l-[3px] rounded-lg ${isSmall ? 'px-1.5 py-1' : 'p-3'} cursor-pointer hover:bg-bg-elevated hover:border-border transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''}`}
+      className={`border border-l-[3px] rounded-lg ${isSmall ? 'px-1.5 py-1' : 'p-3'} cursor-pointer transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''} ${
+        missingEdc
+          ? 'bg-danger/[0.06] border-danger/25 hover:bg-danger/[0.10] hover:border-danger/40'
+          : 'bg-bg-surface border-border-subtle hover:bg-bg-elevated hover:border-border'
+      }`}
     >
       {/* Top row: ticket number, product, type, priority */}
       <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : 'mb-2'}`}>
@@ -93,11 +99,13 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {/* Footer */}
       <div className={`flex items-center justify-between ${isSmall ? 'text-[10px]' : 'text-[11px]'} text-text-muted`}>
         <div>
-          {ticket.edc && (
+          {ticket.edc ? (
             <span className={isTerminal ? 'text-success' : isPastEdc ? 'text-danger' : ''}>
               {isTerminal ? 'Done' : 'EDC'} {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
             </span>
-          )}
+          ) : missingEdc ? (
+            <span className="text-danger font-semibold">No EDC</span>
+          ) : null}
         </div>
         {ticket.assignee_names.length > 0 && (
           <div className="flex -space-x-1.5">

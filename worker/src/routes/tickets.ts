@@ -14,10 +14,18 @@ ticketRoutes.get('/', async (c) => {
   const tag = c.req.query('tag');
   const submitter = c.req.query('submitter');
   const product = c.req.query('product');
+  const archived = c.req.query('archived');
 
   let query = 'SELECT t.*, GROUP_CONCAT(DISTINCT tt.tag) as tags, GROUP_CONCAT(DISTINCT ta.user_id) as assignee_ids, GROUP_CONCAT(DISTINCT a.name) as assignee_names, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN ticket_assignees ta ON t.id = ta.ticket_id LEFT JOIN users a ON ta.user_id = a.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id';
   const conditions: string[] = [];
   const params: string[] = [];
+
+  // By default exclude archived tickets; ?archived=1 returns only archived
+  if (archived === '1') {
+    conditions.push('t.archived_at IS NOT NULL');
+  } else {
+    conditions.push('t.archived_at IS NULL');
+  }
 
   if (status) { conditions.push('t.status = ?'); params.push(status); }
   if (priority) { conditions.push('t.priority = ?'); params.push(priority); }
@@ -349,7 +357,7 @@ ticketRoutes.patch('/:id', async (c) => {
 });
 
 // PATCH /api/v1/tickets/:id/move (Dev+ only)
-ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
+ticketRoutes.patch('/:id/move', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
   const { status, sort_order } = await c.req.json<{ status: string; sort_order: number }>();
 
@@ -415,6 +423,46 @@ ticketRoutes.patch('/:id/move', requireRole('dev', 'admin'), async (c) => {
 
   const updated = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
   return c.json({ data: updated, error: null });
+});
+
+// POST /api/v1/tickets/:id/archive
+ticketRoutes.post('/:id/archive', requireRole('dev', 'admin'), async (c) => {
+  const { id } = c.req.param();
+  const ticket = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first<Ticket>();
+  if (!ticket) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
+  }
+  if (ticket.archived_at) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Ticket is already archived.' } }, 400);
+  }
+  const now = Math.floor(Date.now() / 1000);
+  await c.env.DB.prepare('UPDATE tickets SET archived_at = ?, updated_at = ? WHERE id = ?').bind(now, now, id).run();
+  const updated = await c.env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(id).first();
+  return c.json({ data: updated, error: null });
+});
+
+// POST /api/v1/tickets/unarchive (bulk)
+ticketRoutes.post('/unarchive', requireRole('dev', 'admin'), async (c) => {
+  const { ids } = await c.req.json<{ ids: string[] }>();
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Provide an array of ticket IDs.' } }, 400);
+  }
+
+  // Get the "todo" column's slug (fallback to 'todo')
+  const todoCol = await c.env.DB.prepare("SELECT slug FROM columns WHERE slug = 'todo' LIMIT 1").first<{ slug: string }>();
+  const targetStatus = todoCol?.slug || 'todo';
+
+  const now = Math.floor(Date.now() / 1000);
+  const maxOrder = await c.env.DB.prepare('SELECT COALESCE(MAX(sort_order), 0) as max_order FROM tickets WHERE status = ?').bind(targetStatus).first<{ max_order: number }>();
+  let nextOrder = (maxOrder?.max_order || 0) + 1;
+
+  await Promise.all(ids.map((id) => {
+    const order = nextOrder++;
+    return c.env.DB.prepare('UPDATE tickets SET archived_at = NULL, status = ?, sort_order = ?, edc = NULL, updated_at = ? WHERE id = ? AND archived_at IS NOT NULL')
+      .bind(targetStatus, order, now, id).run();
+  }));
+
+  return c.json({ data: { restored: ids.length }, error: null });
 });
 
 // GET /api/v1/tickets/:id/comments
