@@ -10,6 +10,7 @@ import { projectRoutes } from './routes/projects';
 import { columnRoutes } from './routes/columns';
 import { pushRoutes } from './routes/push';
 import { settingsRoutes } from './routes/settings';
+import { subtaskRoutes } from './routes/subtasks';
 import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -32,6 +33,7 @@ const api = new Hono<{ Bindings: Env }>();
 api.use('*', authMiddleware);
 api.route('/users', userRoutes);
 api.route('/tickets', ticketRoutes);
+api.route('/tickets/:ticketId/subtasks', subtaskRoutes);
 api.route('/comments', commentRoutes);
 api.route('/attachments', attachmentRoutes);
 api.route('/projects', projectRoutes);

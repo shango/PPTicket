@@ -9,6 +9,7 @@ import { AdminPage } from './pages/AdminPage';
 import { StatsPage } from './pages/StatsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { ArchivePage } from './pages/ArchivePage';
+import { TicketDetailPage } from './pages/TicketDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
@@ -73,6 +74,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <BoardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tickets/:id"
+            element={
+              <ProtectedRoute>
+                <TicketDetailPage />
               </ProtectedRoute>
             }
           />

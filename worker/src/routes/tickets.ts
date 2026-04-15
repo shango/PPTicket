@@ -205,6 +205,7 @@ ticketRoutes.get('/:id', async (c) => {
   ).bind(id).all<{ user_id: string; name: string }>();
   const commentCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM comments WHERE ticket_id = ?').bind(id).first<{ count: number }>();
   const attachmentCount = await c.env.DB.prepare('SELECT COUNT(*) as count FROM attachments WHERE ticket_id = ?').bind(id).first<{ count: number }>();
+  const subtaskCount = await c.env.DB.prepare('SELECT COUNT(*) as total, SUM(completed) as done FROM subtasks WHERE ticket_id = ?').bind(id).first<{ total: number; done: number }>();
 
   return c.json({
     data: {
@@ -214,6 +215,8 @@ ticketRoutes.get('/:id', async (c) => {
       assignee_names: assignees.results.map(a => a.name),
       comment_count: commentCount?.count || 0,
       attachment_count: attachmentCount?.count || 0,
+      subtask_total: subtaskCount?.total || 0,
+      subtask_done: subtaskCount?.done || 0,
     },
     error: null,
   });

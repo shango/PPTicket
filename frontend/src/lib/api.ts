@@ -115,6 +115,23 @@ export const api = {
   deleteAttachment: (id: string) =>
     request(`/api/v1/attachments/${id}`, { method: 'DELETE' }),
 
+  // Subtasks
+  getSubtasks: (ticketId: string) => request<SubTask[]>(`/api/v1/tickets/${ticketId}/subtasks`),
+  createSubtask: (ticketId: string, data: { title: string; description?: string; due_date?: number | null }) =>
+    request<SubTask>(`/api/v1/tickets/${ticketId}/subtasks`, { method: 'POST', body: JSON.stringify(data) }),
+  updateSubtask: (ticketId: string, id: string, data: Partial<{ title: string; description: string | null; due_date: number | null; completed: boolean; sort_order: number }>) =>
+    request<SubTask>(`/api/v1/tickets/${ticketId}/subtasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSubtask: (ticketId: string, id: string) =>
+    request(`/api/v1/tickets/${ticketId}/subtasks/${id}`, { method: 'DELETE' }),
+  getSubtaskAttachments: (ticketId: string, subtaskId: string) =>
+    request<Attachment[]>(`/api/v1/tickets/${ticketId}/subtasks/${subtaskId}/attachments`),
+  getSubtaskUploadUrl: (ticketId: string, subtaskId: string, filename: string, content_type: string) =>
+    request<{ key: string; upload_url: string }>(`/api/v1/tickets/${ticketId}/subtasks/${subtaskId}/attachments/upload-url`, {
+      method: 'POST', body: JSON.stringify({ filename, content_type }),
+    }),
+  registerSubtaskAttachment: (ticketId: string, subtaskId: string, data: { filename: string; url: string; mime_type: string; size_bytes: number }) =>
+    request<Attachment>(`/api/v1/tickets/${ticketId}/subtasks/${subtaskId}/attachments`, { method: 'POST', body: JSON.stringify(data) }),
+
   // Projects
   getProjects: () => request<Project[]>('/api/v1/projects'),
   createProject: (data: { name: string; abbreviation: string; color?: string; default_owner_id?: string }) =>
@@ -230,6 +247,19 @@ export interface Attachment {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: number;
+}
+
+export interface SubTask {
+  id: string;
+  ticket_id: string;
+  title: string;
+  description: string | null;
+  due_date: number | null;
+  completed: number;
+  sort_order: number;
+  attachment_count: number;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface CreateTicketPayload {

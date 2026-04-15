@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
   type DragEndEvent,
@@ -16,7 +17,6 @@ import { useStore } from '../lib/store';
 import { api, type TicketWithMeta, type Project, type Column } from '../lib/api';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { TicketCard } from '../components/TicketCard';
-import { TicketDetailModal } from '../components/TicketDetailModal';
 import { TicketListView } from '../components/TicketListView';
 
 export function BoardPage() {
@@ -25,8 +25,8 @@ export function BoardPage() {
   const fetchTickets = useStore((s) => s.fetchTickets);
   const optimisticMoveTicket = useStore((s) => s.optimisticMoveTicket);
 
+  const navigate = useNavigate();
   const [columns, setColumns] = useState<Column[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<TicketWithMeta | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
@@ -314,7 +314,7 @@ export function BoardPage() {
                   label={col.name}
                   color={col.color}
                   tickets={columnTickets[col.slug] || []}
-                  onTicketClick={(t) => setSelectedTicket(t)}
+                  onTicketClick={(t) => navigate(`/tickets/${t.id}`)}
                   isDraggable={canDrag}
                   ticketSize={user?.ticket_size || 'large'}
                   isTerminal={!!col.is_terminal}
@@ -341,23 +341,12 @@ export function BoardPage() {
             tickets={filteredTickets}
             columns={columns}
             canEdit={canDrag}
-            onTicketClick={(t) => setSelectedTicket(t)}
+            onTicketClick={(t) => navigate(`/tickets/${t.id}`)}
             onUpdate={() => fetchTickets()}
           />
         </div>
       )}
 
-      {/* Detail Modal */}
-      {selectedTicket && (
-        <TicketDetailModal
-          ticket={selectedTicket}
-          onClose={() => setSelectedTicket(null)}
-          onUpdate={() => {
-            fetchTickets();
-            setSelectedTicket(null);
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -61,9 +61,22 @@ export interface Comment {
   updated_at: number | null;
 }
 
+export interface SubTask {
+  id: string;
+  ticket_id: string;
+  title: string;
+  description: string | null;
+  due_date: number | null;
+  completed: number;
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface Attachment {
   id: string;
   ticket_id: string;
+  subtask_id: string | null;
   uploader_id: string;
   filename: string;
   url: string;
