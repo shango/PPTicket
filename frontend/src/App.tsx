@@ -11,6 +11,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { ArchivePage } from './pages/ArchivePage';
 import { AttachmentsPage } from './pages/AttachmentsPage';
 import { MilestonesPage } from './pages/MilestonesPage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
@@ -116,6 +117,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MilestonesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/projects"
+            element={
+              <ProtectedRoute>
+                <ProjectsPage />
               </ProtectedRoute>
             }
           />

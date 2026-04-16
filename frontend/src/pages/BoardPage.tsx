@@ -293,6 +293,17 @@ export function BoardPage() {
 
         <div className="ml-auto" />
 
+        {/* New Ticket */}
+        {user && ['decision_maker', 'dev', 'admin'].includes(user.role) && (
+          <button
+            onClick={() => navigate('/submit')}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-[12px] font-medium hover:bg-accent-hover transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Ticket
+          </button>
+        )}
+
         {/* View toggle */}
         <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5">
           <button

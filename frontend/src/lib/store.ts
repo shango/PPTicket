@@ -13,6 +13,8 @@ interface AppState {
   fetchTickets: (params?: Record<string, string>) => Promise<void>;
   setTickets: (tickets: TicketWithMeta[]) => void;
   optimisticMoveTicket: (ticketId: string, newStatus: string, newSortOrder: number, edcOverride?: number | null) => void;
+  sidebarOpen: boolean;
+  toggleSidebar: () => void;
   setMustChangePassword: (v: boolean) => void;
   logout: () => Promise<void>;
 }
@@ -26,6 +28,13 @@ export const useStore = create<AppState>((set, get) => ({
   loading: false,
   initialized: false,
   error: null,
+  sidebarOpen: localStorage.getItem('sidebar_open') !== 'false',
+
+  toggleSidebar: () => {
+    const next = !get().sidebarOpen;
+    localStorage.setItem('sidebar_open', String(next));
+    set({ sidebarOpen: next });
+  },
 
   fetchUser: async () => {
     try {
