@@ -55,12 +55,12 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : ticket.product_name ? 'mb-0.5' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
           <span className={`${isSmall ? 'text-[9px]' : 'text-[11px]'} font-mono text-text-muted font-medium`}>PDO-{ticket.ticket_number}</span>
-          {!isSmall && ticket.product_abbreviation && (
+          {!isSmall && ticket.product_name && (
             <span
-              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium truncate max-w-[72px]"
               style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}
             >
-              {ticket.product_abbreviation}
+              {ticket.product_name.slice(0, 8)}
             </span>
           )}
         </div>
@@ -78,11 +78,6 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
           </span>
         </div>
       </div>
-
-      {/* Project name — large cards only */}
-      {!isSmall && ticket.product_name && (
-        <p className="text-[11px] text-text-muted mb-1.5">{ticket.product_name}</p>
-      )}
 
       {/* Title */}
       <h3 className={`${isSmall ? 'text-[11px] line-clamp-1 mb-0.5' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
@@ -133,16 +128,12 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
           ) : null}
         </div>
         {ticket.assignee_names.length > 0 && (
-          <div className="flex -space-x-1.5">
-            {ticket.assignee_names.slice(0, isSmall ? 2 : 3).map((name, i) => (
-              <div key={i} className={`${isSmall ? 'w-5 h-5 text-[9px]' : 'w-6 h-6 text-[10px]'} rounded-full bg-accent/15 flex items-center justify-center text-accent font-semibold ring-1 ring-bg-surface`}>
-                {name.split(' ').map(n => n[0]).join('').toUpperCase()}
-              </div>
+          <div className={`flex items-center gap-1 ${isSmall ? 'text-[9px]' : 'text-[10px]'} text-text-muted truncate`}>
+            {ticket.assignee_names.slice(0, isSmall ? 1 : 2).map((name, i) => (
+              <span key={i}>{i > 0 && ', '}{name.split(' ')[0]}</span>
             ))}
-            {ticket.assignee_names.length > (isSmall ? 2 : 3) && (
-              <div className={`${isSmall ? 'w-5 h-5 text-[8px]' : 'w-6 h-6 text-[9px]'} rounded-full bg-bg-elevated flex items-center justify-center text-text-muted font-medium ring-1 ring-bg-surface`}>
-                +{ticket.assignee_names.length - (isSmall ? 2 : 3)}
-              </div>
+            {ticket.assignee_names.length > (isSmall ? 1 : 2) && (
+              <span>+{ticket.assignee_names.length - (isSmall ? 1 : 2)}</span>
             )}
           </div>
         )}

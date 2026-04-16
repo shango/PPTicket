@@ -62,7 +62,7 @@ export function BoardPage() {
 
     const interval = setInterval(() => {
       if (!draggingRef.current) fetchTickets();
-    }, 5000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchTickets]);
 
