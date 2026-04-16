@@ -79,26 +79,14 @@ export function Layout() {
           sidebarOpen ? 'w-48' : 'w-12'
         }`}
       >
-        {/* Logo + collapse toggle */}
+        {/* Logo */}
         <div className={`flex items-center shrink-0 h-12 border-b border-border-subtle ${sidebarOpen ? 'px-3 gap-2.5' : 'justify-center'}`}>
           <div className="w-6 h-6 rounded-md bg-accent/20 flex items-center justify-center shrink-0">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-accent">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
           </div>
-          {sidebarOpen && <span className="text-[14px] font-semibold text-text-primary tracking-tight truncate flex-1">PDO Kanban</span>}
-          <button
-            onClick={toggleSidebar}
-            className={`shrink-0 p-1 rounded-md text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors ${sidebarOpen ? '' : 'mt-0'}`}
-            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
-              className={`transition-transform duration-200 ${sidebarOpen ? '' : 'rotate-180'}`}>
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <line x1="9" y1="3" x2="9" y2="21"/>
-              <polyline points="15 8 12 12 15 16"/>
-            </svg>
-          </button>
+          {sidebarOpen && <span className="text-[14px] font-semibold text-text-primary tracking-tight truncate">PDO Kanban</span>}
         </div>
 
         {/* Nav */}
@@ -164,6 +152,20 @@ export function Layout() {
             )}
           </div>
 
+          {/* Collapse toggle */}
+          <button
+            onClick={toggleSidebar}
+            className={`w-full flex items-center rounded-lg py-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors ${sidebarOpen ? 'px-3 gap-3' : 'px-0 justify-center'}`}
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
+              className={`shrink-0 transition-transform duration-200 ${sidebarOpen ? '' : 'rotate-180'}`}>
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
+              <polyline points="15 8 12 12 15 16"/>
+            </svg>
+            {sidebarOpen && <span className="text-[11px]">Collapse</span>}
+          </button>
         </div>
       </aside>
 
