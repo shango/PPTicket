@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, getToken, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment } from '../lib/api';
+import { api, getToken, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
 
 const priorityOptions = [
@@ -95,6 +95,7 @@ export function TicketDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [devUsers, setDevUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [statusColumns, setStatusColumns] = useState<Column[]>([]);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -106,7 +107,7 @@ export function TicketDetailPage() {
     status: '',
     assignee_ids: [] as string[],
     edc: '',
-    product_version: '',
+    milestone_id: '',
     ticket_type: 'bug' as 'bug' | 'feature',
     product_id: '',
     tags: '',
@@ -131,6 +132,11 @@ export function TicketDetailPage() {
   const canComment = currentUser && ['decision_maker', 'dev', 'admin'].includes(currentUser.role);
   const canManageSubtasks = currentUser && ['decision_maker', 'dev', 'admin'].includes(currentUser.role);
 
+  const filteredMilestones = useMemo(
+    () => milestones.filter(m => form.product_id && m.project_id === form.product_id),
+    [milestones, form.product_id]
+  );
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -144,7 +150,7 @@ export function TicketDetailPage() {
           status: t.status,
           assignee_ids: t.assignee_ids || [],
           edc: t.edc ? new Date(t.edc * 1000).toISOString().split('T')[0] : '',
-          product_version: t.product_version || '',
+          milestone_id: t.milestone_id || '',
           ticket_type: t.ticket_type || 'bug',
           product_id: t.product_id || '',
           tags: t.tags.join(', '),
@@ -160,6 +166,7 @@ export function TicketDetailPage() {
     api.getSubtasks(id).then(setSubtasks).catch(() => {});
     api.getAttachments(id).then(setTicketAttachments).catch(() => {});
     api.getProjects().then(setProjects).catch(() => {});
+    api.getMilestones().then(setMilestones).catch(() => {});
     api.getColumns().then(setStatusColumns).catch(() => {});
   }, [id]);
 
@@ -189,7 +196,7 @@ export function TicketDetailPage() {
         status: t.status,
         assignee_ids: t.assignee_ids || [],
         edc: t.edc ? new Date(t.edc * 1000).toISOString().split('T')[0] : '',
-        product_version: t.product_version || '',
+        milestone_id: t.milestone_id || '',
         ticket_type: t.ticket_type || 'bug',
         product_id: t.product_id || '',
         tags: t.tags.join(', '),
@@ -211,7 +218,7 @@ export function TicketDetailPage() {
       const newIds = form.assignee_ids.slice().sort().join(',');
       if (currentIds !== newIds) updates.assignee_ids = form.assignee_ids;
       if (form.tags !== ticket.tags.join(', ')) updates.tags = form.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-      if (form.product_version !== (ticket.product_version || '')) updates.product_version = form.product_version || null;
+      if (form.milestone_id !== (ticket.milestone_id || '')) updates.milestone_id = form.milestone_id || null;
       if (form.ticket_type !== (ticket.ticket_type || 'bug')) updates.ticket_type = form.ticket_type;
       if (form.product_id !== (ticket.product_id || '')) updates.product_id = form.product_id || null;
       const edcUnix = form.edc ? Math.floor(new Date(form.edc).getTime() / 1000) : null;
@@ -998,7 +1005,7 @@ export function TicketDetailPage() {
                         rows={4}
                         className={`w-full ${fieldInput} resize-none pb-10`}
                       />
-                      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between z-10">
+                      <div className="absolute bottom-3 left-2 right-2 flex items-center justify-between z-10">
                         <label className="p-1 rounded text-text-muted hover:text-accent cursor-pointer transition-colors" title="Attach file">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
@@ -1101,7 +1108,7 @@ export function TicketDetailPage() {
                 <div>
                   <label className={fieldLabel}>Project</label>
                   {editing ? (
-                    <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })} className={fieldInput}>
+                    <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value, milestone_id: '' })} className={fieldInput}>
                       <option value="">None</option>
                       {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
@@ -1148,11 +1155,14 @@ export function TicketDetailPage() {
                   )}
                 </div>
                 <div>
-                  <label className={fieldLabel}>Version</label>
+                  <label className={fieldLabel}>Milestone</label>
                   {editing ? (
-                    <input value={form.product_version} onChange={(e) => setForm({ ...form, product_version: e.target.value })} placeholder="e.g. 2.4.1" className={fieldInput} />
+                    <select value={form.milestone_id} onChange={(e) => setForm({ ...form, milestone_id: e.target.value })} className={fieldInput}>
+                      <option value="">None</option>
+                      {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name}{m.status === 'closed' ? ' (closed)' : ''}</option>)}
+                    </select>
                   ) : (
-                    <span className={`${fieldValue} font-mono`}>{ticket.product_version || '—'}</span>
+                    <span className={fieldValue}>{ticket.milestone_name || '—'}</span>
                   )}
                 </div>
                 <div>

@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { TicketWithMeta } from '../lib/api';
+import { api, type TicketWithMeta } from '../lib/api';
 
 const priorityStyles: Record<string, { bg: string; text: string }> = {
   p0: { bg: 'rgba(212, 86, 78, 0.12)', text: '#d4564e' },
@@ -54,10 +54,10 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {/* Top row: ticket number, product, type, priority */}
       <div className={`flex items-center justify-between ${isSmall ? 'mb-0.5' : ticket.product_name ? 'mb-0.5' : 'mb-2'}`}>
         <div className="flex items-center gap-1.5">
-          {!isSmall && <span className="text-[11px] text-text-muted font-medium">{new Date(ticket.created_at * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</span>}
-          {ticket.product_abbreviation && (
+          <span className={`${isSmall ? 'text-[9px]' : 'text-[11px]'} font-mono text-text-muted font-medium`}>PDO-{ticket.ticket_number}</span>
+          {!isSmall && ticket.product_abbreviation && (
             <span
-              className={`${isSmall ? 'text-[9px] px-1 py-px' : 'text-[10px] px-1.5 py-0.5'} rounded font-medium`}
+              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
               style={{ backgroundColor: `${ticket.product_color}15`, color: ticket.product_color || undefined }}
             >
               {ticket.product_abbreviation}
@@ -87,6 +87,18 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {/* Title */}
       <h3 className={`${isSmall ? 'text-[11px] line-clamp-1 mb-0.5' : 'text-[13px] line-clamp-2 mb-2'} font-medium text-text-primary leading-snug`}>{ticket.title}</h3>
 
+      {/* Cover image — large cards only */}
+      {!isSmall && ticket.cover_image_id && (
+        <div className="mb-2 rounded overflow-hidden bg-bg-elevated">
+          <img
+            src={api.attachmentDownloadUrl(ticket.cover_image_id)}
+            alt=""
+            className="w-full h-24 object-cover"
+            loading="lazy"
+          />
+        </div>
+      )}
+
       {/* Tags — hidden in small mode */}
       {!isSmall && ticket.tags.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap mb-2">
@@ -103,7 +115,15 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
 
       {/* Footer */}
       <div className={`flex items-center justify-between ${isSmall ? 'text-[10px]' : 'text-[11px]'} text-text-muted`}>
-        <div>
+        <div className="flex items-center gap-2">
+          {ticket.attachment_count > (ticket.cover_image_id ? 1 : 0) && (
+            <span className="flex items-center gap-0.5" title={`${ticket.attachment_count} attachment${ticket.attachment_count > 1 ? 's' : ''}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+              </svg>
+              {ticket.attachment_count}
+            </span>
+          )}
           {ticket.edc ? (
             <span className={isTerminal ? 'text-success' : isPastEdc ? 'text-danger' : ''}>
               {isTerminal ? 'Done' : 'EDC'} {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}

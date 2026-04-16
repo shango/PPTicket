@@ -11,6 +11,7 @@ import { columnRoutes } from './routes/columns';
 import { pushRoutes } from './routes/push';
 import { settingsRoutes } from './routes/settings';
 import { subtaskRoutes } from './routes/subtasks';
+import { milestoneRoutes } from './routes/milestones';
 import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
@@ -40,6 +41,7 @@ api.route('/projects', projectRoutes);
 api.route('/columns', columnRoutes);
 api.route('/push', pushRoutes);
 api.route('/settings', settingsRoutes);
+api.route('/milestones', milestoneRoutes);
 
 app.route('/api/v1', api);
 

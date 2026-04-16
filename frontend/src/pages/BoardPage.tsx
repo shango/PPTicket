@@ -14,7 +14,7 @@ import {
   type CollisionDetection,
 } from '@dnd-kit/core';
 import { useStore } from '../lib/store';
-import { api, type TicketWithMeta, type Project, type Column } from '../lib/api';
+import { api, type TicketWithMeta, type Project, type Column, type Milestone } from '../lib/api';
 import { KanbanColumn } from '../components/KanbanColumn';
 import { TicketCard } from '../components/TicketCard';
 import { TicketListView } from '../components/TicketListView';
@@ -32,6 +32,8 @@ export function BoardPage() {
   const [priorityFilter, setPriorityFilter] = useState<string[]>([]);
   const [projectFilter, setProductFilter] = useState<string>('');
   const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [milestoneFilter, setMilestoneFilter] = useState('');
   const [myTickets, setMyTickets] = useState(false);
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
 
@@ -56,6 +58,7 @@ export function BoardPage() {
     fetchTickets();
     api.getColumns().then(setColumns).catch(() => {});
     api.getProjects().then(setProjects).catch(() => {});
+    api.getMilestones({ status: 'open' }).then(setMilestones).catch(() => {});
 
     const interval = setInterval(() => {
       if (!draggingRef.current) fetchTickets();
@@ -77,11 +80,14 @@ export function BoardPage() {
     if (projectFilter) {
       result = result.filter((t) => t.product_id === projectFilter);
     }
+    if (milestoneFilter) {
+      result = result.filter((t) => t.milestone_id === milestoneFilter);
+    }
     if (myTickets && user) {
       result = result.filter((t) => t.assignee_ids.includes(user.id));
     }
     return result;
-  }, [tickets, search, priorityFilter, projectFilter, myTickets, user]);
+  }, [tickets, search, priorityFilter, projectFilter, milestoneFilter, myTickets, user]);
 
   const columnTickets = useMemo(() => {
     const map: Record<string, TicketWithMeta[]> = {};
@@ -180,7 +186,7 @@ export function BoardPage() {
   }
 
   const activeTicket = activeId ? tickets.find((t) => t.id === activeId) : null;
-  const hasFilters = search || priorityFilter.length > 0 || projectFilter || myTickets;
+  const hasFilters = search || priorityFilter.length > 0 || projectFilter || milestoneFilter || myTickets;
 
   const priorityBtnColors: Record<string, { active: string; dot: string }> = {
     p0: { active: 'bg-p0/15 text-p0 ring-p0/30', dot: 'bg-p0' },
@@ -249,6 +255,20 @@ export function BoardPage() {
           ))}
         </select>
 
+        {/* Milestone filter */}
+        <select
+          value={milestoneFilter}
+          onChange={(e) => setMilestoneFilter(e.target.value)}
+          className="bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-secondary"
+        >
+          <option value="">All Milestones</option>
+          {milestones
+            .filter(m => !projectFilter || m.project_id === projectFilter)
+            .map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+        </select>
+
         {/* My tickets */}
         <button
           onClick={() => setMyTickets(!myTickets)}
@@ -264,7 +284,7 @@ export function BoardPage() {
         {/* Clear */}
         {hasFilters && (
           <button
-            onClick={() => { setSearch(''); setPriorityFilter([]); setProductFilter(''); setMyTickets(false); }}
+            onClick={() => { setSearch(''); setPriorityFilter([]); setProductFilter(''); setMilestoneFilter(''); setMyTickets(false); }}
             className="text-[12px] text-text-muted hover:text-text-secondary ml-1"
           >
             All Tickets

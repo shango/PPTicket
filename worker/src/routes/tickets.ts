@@ -28,7 +28,11 @@ ticketRoutes.get('/', async (c) => {
   const product = c.req.query('product');
   const archived = c.req.query('archived');
 
-  let query = 'SELECT t.*, GROUP_CONCAT(DISTINCT tt.tag) as tags, GROUP_CONCAT(DISTINCT ta.user_id) as assignee_ids, GROUP_CONCAT(DISTINCT a.name) as assignee_names, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN ticket_assignees ta ON t.id = ta.ticket_id LEFT JOIN users a ON ta.user_id = a.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id';
+  let query = `SELECT t.*, GROUP_CONCAT(DISTINCT tt.tag) as tags, GROUP_CONCAT(DISTINCT ta.user_id) as assignee_ids, GROUP_CONCAT(DISTINCT a.name) as assignee_names, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name,
+    (SELECT COUNT(*) FROM attachments WHERE ticket_id = t.id AND comment_id IS NULL) as attachment_count,
+    (SELECT id FROM attachments WHERE ticket_id = t.id AND comment_id IS NULL AND mime_type LIKE 'image/%' ORDER BY created_at ASC LIMIT 1) as cover_image_id,
+    ms.name as milestone_name
+    FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN ticket_assignees ta ON t.id = ta.ticket_id LEFT JOIN users a ON ta.user_id = a.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN milestones ms ON t.milestone_id = ms.id`;
   const conditions: string[] = [];
   const params: string[] = [];
 
@@ -45,6 +49,8 @@ ticketRoutes.get('/', async (c) => {
   if (submitter) { conditions.push('t.submitter_id = ?'); params.push(submitter); }
   if (tag) { conditions.push('EXISTS (SELECT 1 FROM ticket_tags WHERE ticket_id = t.id AND tag = ?)'); params.push(tag); }
   if (product) { conditions.push('t.product_id = ?'); params.push(product); }
+  const milestone = c.req.query('milestone');
+  if (milestone) { conditions.push('t.milestone_id = ?'); params.push(milestone); }
 
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
@@ -78,6 +84,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     product_version?: string | null;
     ticket_type?: TicketType;
     product_id?: string | null;
+    milestone_id?: string | null;
     submitter_id?: string | null;
     assignee_ids?: string[];
     status?: string;
@@ -131,10 +138,10 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 
   // Atomic insert with computed ticket_number and sort_order to avoid race conditions
   await c.env.DB.prepare(
-    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
-     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
+    `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, milestone_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
+     SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
      FROM tickets`
-  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
+  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, body.milestone_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
 
   // Add assignees to junction table
   for (const aid of assigneeIds) {
@@ -193,7 +200,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
 ticketRoutes.get('/:id', async (c) => {
   const { id } = c.req.param();
   const ticket = await c.env.DB.prepare(
-    'SELECT t.*, u.name as submitter_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN products p ON t.product_id = p.id WHERE t.id = ?'
+    'SELECT t.*, u.name as submitter_name, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, ms.name as milestone_name FROM tickets t LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN milestones ms ON t.milestone_id = ms.id WHERE t.id = ?'
   ).bind(id).first();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
@@ -249,6 +256,7 @@ ticketRoutes.patch('/:id', async (c) => {
     product_version: string | null;
     ticket_type: TicketType;
     product_id: string | null;
+    milestone_id: string | null;
     tags: string[];
   }>>();
 
@@ -283,6 +291,14 @@ ticketRoutes.patch('/:id', async (c) => {
   if (body.product_id !== undefined) {
     if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change product.' } }, 403);
     updates.push('product_id = ?'); values.push(body.product_id);
+    // Clear milestone when project changes (milestone belongs to the old project)
+    if (body.product_id !== ticket.product_id && body.milestone_id === undefined) {
+      updates.push('milestone_id = ?'); values.push(null);
+    }
+  }
+  if (body.milestone_id !== undefined) {
+    if (isDM) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can change milestone.' } }, 403);
+    updates.push('milestone_id = ?'); values.push(body.milestone_id);
   }
 
   // Priority and assignee changes are restricted to dev/admin

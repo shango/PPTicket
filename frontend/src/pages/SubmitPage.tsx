@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { api, type TicketWithMeta, type Project, type User } from '../lib/api';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { api, type TicketWithMeta, type Project, type User, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
 
 function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
@@ -73,7 +73,7 @@ export function SubmitPage() {
     ticket_type: '' as '' | 'bug' | 'feature',
     product_id: '',
     tags: '',
-    product_version: '',
+    milestone_id: '',
   });
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [status, setStatus] = useState('backlog');
@@ -82,9 +82,11 @@ export function SubmitPage() {
   const [error, setError] = useState('');
   const [myTickets, setMyTickets] = useState<TicketWithMeta[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [devUsers, setDevUsers] = useState<User[]>([]);
   useEffect(() => {
     api.getProjects().then(setProjects).catch(() => {});
+    api.getMilestones({ status: 'open' }).then(setMilestones).catch(() => {});
     if (canAssign) {
       api.getUsers().then((users) => {
         if (Array.isArray(users)) setDevUsers(users.filter(u => ['decision_maker', 'dev', 'admin'].includes(u.role)));
@@ -97,6 +99,11 @@ export function SubmitPage() {
       api.getTickets({ submitter: user.id }).then(setMyTickets).catch(() => {});
     }
   }, [user, success]);
+
+  const filteredMilestones = useMemo(
+    () => milestones.filter(m => form.product_id && m.project_id === form.product_id),
+    [milestones, form.product_id]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,14 +124,14 @@ export function SubmitPage() {
         description: form.description,
         priority: form.priority,
         tags,
-        product_version: form.product_version || null,
+        milestone_id: form.milestone_id || null,
         ticket_type: form.ticket_type as 'bug' | 'feature',
         product_id: form.product_id || null,
         ...(canAssign ? { assignee_ids: assigneeIds, status } : {}),
       });
 
       setSuccess({ ticketNumber: ticket.ticket_number });
-      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', product_version: '' });
+      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', milestone_id: '' });
       setAssigneeIds([]);
       setStatus('backlog');
     } catch (e: any) {
@@ -193,7 +200,7 @@ export function SubmitPage() {
           </div>
           <div>
             <label className={fieldLabel}>Project <span className="text-danger">*</span></label>
-            <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
+            <select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value, milestone_id: '' })}
               required className={fieldInput}>
               <option value="">Select project...</option>
               {projects.map((p) => (
@@ -258,9 +265,12 @@ export function SubmitPage() {
             </select>
           </div>
           <div>
-            <label className={fieldLabel}>Version</label>
-            <input value={form.product_version} onChange={(e) => setForm({ ...form, product_version: e.target.value })}
-              className={fieldInput} placeholder="e.g. 2.4.1" />
+            <label className={fieldLabel}>Milestone</label>
+            <select value={form.milestone_id} onChange={(e) => setForm({ ...form, milestone_id: e.target.value })}
+              className={fieldInput} disabled={!form.product_id}>
+              <option value="">{form.product_id ? 'None' : 'Select a project first'}</option>
+              {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
           </div>
         </div>
 

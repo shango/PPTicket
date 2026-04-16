@@ -49,7 +49,20 @@ export interface Ticket {
   sort_order: number;
   created_at: number;
   updated_at: number;
+  milestone_id: string | null;
   archived_at: number | null;
+}
+
+export interface Milestone {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  target_date: number | null;
+  status: 'open' | 'closed';
+  sort_order: number;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface Comment {

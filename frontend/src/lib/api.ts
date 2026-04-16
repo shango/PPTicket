@@ -150,6 +150,19 @@ export const api = {
   deleteProject: (id: string) =>
     request(`/api/v1/projects/${id}`, { method: 'DELETE' }),
 
+  // Milestones
+  getMilestones: (params?: Record<string, string>) => {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return request<Milestone[]>(`/api/v1/milestones${qs}`);
+  },
+  getMilestone: (id: string) => request<Milestone>(`/api/v1/milestones/${id}`),
+  createMilestone: (data: { name: string; project_id: string; description?: string; target_date?: number | null }) =>
+    request<Milestone>('/api/v1/milestones', { method: 'POST', body: JSON.stringify(data) }),
+  updateMilestone: (id: string, data: Partial<{ name: string; description: string | null; target_date: number | null; status: 'open' | 'closed'; sort_order: number }>) =>
+    request<Milestone>(`/api/v1/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteMilestone: (id: string) =>
+    request(`/api/v1/milestones/${id}`, { method: 'DELETE' }),
+
   // Push notifications
   getVapidKey: () => request<{ key: string }>('/api/v1/push/vapid-key'),
   pushSubscribe: (data: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
@@ -227,12 +240,15 @@ export interface TicketWithMeta {
   created_at: number;
   updated_at: number;
   archived_at: number | null;
+  milestone_id: string | null;
+  milestone_name: string | null;
   tags: string[];
+  attachment_count: number;
+  cover_image_id: string | null;
 }
 
 export interface TicketDetail extends TicketWithMeta {
   comment_count: number;
-  attachment_count: number;
 }
 
 export interface Comment {
@@ -289,6 +305,7 @@ export interface CreateTicketPayload {
   product_version?: string | null;
   ticket_type?: 'bug' | 'feature';
   product_id?: string | null;
+  milestone_id?: string | null;
   submitter_id?: string | null;
   assignee_ids?: string[];
   status?: string;
@@ -303,6 +320,7 @@ export interface UpdateTicketPayload {
   product_version: string | null;
   ticket_type: 'bug' | 'feature';
   product_id: string | null;
+  milestone_id: string | null;
   tags: string[];
 }
 
@@ -325,4 +343,21 @@ export interface Project {
   default_owner_id: string | null;
   default_owner_name: string | null;
   created_at: number;
+}
+
+export interface Milestone {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  target_date: number | null;
+  status: 'open' | 'closed';
+  sort_order: number;
+  project_name: string;
+  project_abbreviation: string;
+  project_color: string;
+  total_tickets: number;
+  done_tickets: number;
+  created_at: number;
+  updated_at: number;
 }
