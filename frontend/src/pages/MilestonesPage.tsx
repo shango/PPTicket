@@ -82,8 +82,6 @@ export function MilestonesPage() {
         .filter(m => m.project_id === project.id && (showClosed || m.status !== 'closed') && m.target_date)
         .sort((a, b) => a.target_date! - b.target_date!);
 
-      if (projectMilestones.length === 0) return null;
-
       const projectTickets = tickets
         .filter(t => t.product_id === project.id && t.edc)
         .sort((a, b) => a.edc! - b.edc!);
@@ -247,6 +245,9 @@ export function MilestonesPage() {
             )}
 
             {/* Timeline */}
+            {segments.length === 0 && showCreate !== project.id && (
+              <p className="text-[12px] text-text-muted mb-2">No milestones yet. Click <span className="text-accent">+ Milestone</span> to create one.</p>
+            )}
             <div className="relative overflow-x-auto pb-2">
               <div className="min-w-full">
                 {segments.map(({ milestone: ms, tickets: segTickets }, segIdx) => (
