@@ -934,6 +934,21 @@ export function TicketDetailPage() {
                       <span className="text-[10px] text-text-muted">
                         {new Date(comment.created_at * 1000).toLocaleString()}
                       </span>
+                      {editing && currentUser?.role === 'admin' && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm('Delete this comment?')) return;
+                            try {
+                              await api.deleteComment(comment.id);
+                              setComments(prev => prev.filter(c => c.id !== comment.id));
+                            } catch { /* ignore */ }
+                          }}
+                          className="ml-auto text-[10px] text-text-muted hover:text-danger transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                     {comment.body && (
                       <p className="text-[13px] text-text-secondary whitespace-pre-wrap pl-7">{renderCommentBody(comment.body)}</p>

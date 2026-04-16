@@ -51,7 +51,7 @@ milestoneRoutes.get('/:id', async (c) => {
 });
 
 // POST /api/v1/milestones (dev+ only)
-milestoneRoutes.post('/', requireRole('dev', 'admin'), async (c) => {
+milestoneRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { name, project_id, description, target_date, status } = await c.req.json<{
     name: string;
     project_id: string;
@@ -91,7 +91,7 @@ milestoneRoutes.post('/', requireRole('dev', 'admin'), async (c) => {
 });
 
 // PATCH /api/v1/milestones/:id (dev+ only)
-milestoneRoutes.patch('/:id', requireRole('dev', 'admin'), async (c) => {
+milestoneRoutes.patch('/:id', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json<{
     name?: string;
@@ -141,7 +141,7 @@ milestoneRoutes.patch('/:id', requireRole('dev', 'admin'), async (c) => {
 });
 
 // DELETE /api/v1/milestones/:id (admin only)
-milestoneRoutes.delete('/:id', requireRole('admin'), async (c) => {
+milestoneRoutes.delete('/:id', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
 
   const existing = await c.env.DB.prepare('SELECT id FROM milestones WHERE id = ?').bind(id).first();
