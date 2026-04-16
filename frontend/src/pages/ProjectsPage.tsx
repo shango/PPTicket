@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Project, type TicketWithMeta } from '../lib/api';
-import { useStore } from '../lib/store';
+
 
 export function ProjectsPage() {
-  const user = useStore((s) => s.user);
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tickets, setTickets] = useState<TicketWithMeta[]>([]);
