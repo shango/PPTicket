@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type TicketWithMeta, type Project, type User, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
 
@@ -65,6 +66,7 @@ function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selec
 
 export function SubmitPage() {
   const user = useStore((s) => s.user);
+  const navigate = useNavigate();
   const canAssign = user && ['dev', 'admin'].includes(user.role);
   const [form, setForm] = useState({
     title: '',
@@ -146,6 +148,13 @@ export function SubmitPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
+      <button onClick={() => navigate('/board')}
+        className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text-primary transition-colors mb-6">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Back to board
+      </button>
       <div className="mb-8">
         <h1 className="text-xl font-bold text-text-primary tracking-tight">New Ticket</h1>
         <p className="text-[13px] text-text-muted mt-1">Submit a bug report or feature request</p>
