@@ -202,7 +202,7 @@ export function AdminPage() {
   const fieldInput = "bg-bg-elevated border border-border rounded-lg px-3 py-2 text-[13px]";
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto px-6 py-8 overflow-y-auto h-full">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-xl font-bold text-text-primary tracking-tight">Admin</h1>
