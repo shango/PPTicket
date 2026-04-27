@@ -1,9 +1,20 @@
 # Product Requirements Document
 ## PDO Experts — Internal Kanban Ticketing System
-**Version:** 1.0  
-**Status:** Draft  
-**Date:** 2026-04-01  
+**Version:** 1.1  
+**Status:** Implementation Complete  
+**Date:** 2026-04-11  
 **Owner:** TBD  
+
+---
+
+## Implementation Status Legend
+
+| Symbol | Meaning |
+|--------|---------|
+| :white_check_mark: BUILT | Feature is fully implemented and functional |
+| :large_orange_diamond: MODIFIED | Feature was built but differs from original spec |
+| :x: NOT BUILT | Feature from the original spec that was not implemented |
+| :star: ADDED | Feature not in original spec that was built |
 
 ---
 
@@ -27,6 +38,7 @@
 11. [Out of Scope (v1)](#11-out-of-scope-v1)
 12. [Future Phases](#12-future-phases)
 13. [Open Questions](#13-open-questions)
+14. [Features Added Beyond Original Spec](#14-features-added-beyond-original-spec)
 
 ---
 
@@ -34,7 +46,7 @@
 
 An internal web application for the PDO Experts team that combines a **decision maker ticket submission portal** with a **developer-facing kanban board**. The system enables non-technical stakeholders to submit requests into a structured backlog, while developers manage, prioritize, and track work through a drag-and-drop kanban interface.
 
-Access is restricted exclusively to `@pdoexperts.fb.com` Google accounts. All backend logic runs on **Cloudflare Workers** with **Cloudflare D1** (SQLite) as the database. The frontend is a **React SPA** deployed via **Cloudflare Pages**.
+Access is restricted exclusively to `@pdoexperts.fb.com` accounts. All backend logic runs on **Cloudflare Workers** with **Cloudflare D1** (SQLite) as the database. The frontend is a **React SPA** deployed via **Cloudflare Pages**.
 
 ---
 
@@ -42,65 +54,78 @@ Access is restricted exclusively to `@pdoexperts.fb.com` Google accounts. All ba
 
 ### Goals
 
-- Provide a clean, minimal-friction ticket submission form for decision makers
-- Give developers a fully interactive kanban board (drag-and-drop, filtering, ticket detail)
-- Enforce role-based access so each user type sees only what they need
-- Restrict access to `@pdoexperts.fb.com` Google accounts only
-- Keep the entire stack within Cloudflare's free/affordable tier
-- Send email notifications on key events (new ticket, new user signup, assignments)
+- :white_check_mark: Provide a clean, minimal-friction ticket submission form for decision makers
+- :white_check_mark: Give developers a fully interactive kanban board (drag-and-drop, filtering, ticket detail)
+- :white_check_mark: Enforce role-based access so each user type sees only what they need
+- :white_check_mark: Restrict access to `@pdoexperts.fb.com` accounts only
+- :white_check_mark: Keep the entire stack within Cloudflare's free/affordable tier
+- :white_check_mark: Send email notifications on key events (new ticket, new user signup, assignments)
 
 ### Non-Goals (v1)
 
-- Public-facing ticket intake (all users must authenticate)
-- Slack or webhook integrations
-- Mobile-native app (responsive web is sufficient)
-- Custom kanban column configuration (fixed 5-column layout in v1)
-- Time tracking or sprint/milestone management
-- Self-hosted email server (use a transactional email provider via API)
+- :white_check_mark: Public-facing ticket intake — all users must authenticate
+- :white_check_mark: Slack or webhook integrations — not built
+- :white_check_mark: Mobile-native app — responsive web only
+- :large_orange_diamond: Custom kanban column configuration — **was listed as a non-goal but was actually built**. Admins can add, rename, reorder, set colors, and delete columns.
+- :white_check_mark: Time tracking or sprint/milestone management — not built
+- :white_check_mark: Self-hosted email server — uses Resend transactional email API
 
 ---
 
 ## 3. User Roles & Permissions
 
+### :white_check_mark: BUILT — All roles and permissions implemented as specified.
+
 | Permission | Viewer | Decision Maker | Dev | Admin |
 |---|---|---|---|---|
-| View kanban board | ✅ Read-only | ✅ Read-only | ✅ Full | ✅ Full |
-| Submit tickets | ❌ | ✅ | ✅ | ✅ |
-| Move tickets between columns | ❌ | ❌ | ✅ | ✅ |
-| Edit ticket fields | ❌ | Own tickets only | ✅ | ✅ |
-| Delete tickets | ❌ | ❌ | ❌ | ✅ |
-| Add comments | ❌ | ✅ | ✅ | ✅ |
-| Assign tickets | ❌ | ❌ | ✅ | ✅ |
-| Manage user roles | ❌ | ❌ | ❌ | ✅ |
-| View admin panel | ❌ | ❌ | ❌ | ✅ |
+| View kanban board | :white_check_mark: Read-only | :white_check_mark: Read-only | :white_check_mark: Full | :white_check_mark: Full |
+| Submit tickets | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Move tickets between columns | :x: | :x: | :white_check_mark: | :white_check_mark: |
+| Edit ticket fields | :x: | Own tickets only | :white_check_mark: | :white_check_mark: |
+| Delete tickets | :x: | :x: | :x: | :white_check_mark: |
+| Add comments | :x: | :white_check_mark: | :white_check_mark: | :white_check_mark: |
+| Assign tickets | :x: | :x: | :white_check_mark: | :white_check_mark: |
+| Manage user roles | :x: | :x: | :x: | :white_check_mark: |
+| View admin panel | :x: | :x: | :x: | :white_check_mark: |
 
-**Default on first login:** Any authenticated `@pdoexperts.fb.com` user is automatically assigned the `Viewer` role. An Admin must manually promote them to their intended role. Devs receive an email alert when a new user signs up.
+:large_orange_diamond: **Default on first login:** The original spec called for automatic account creation on first Google OAuth login with `Viewer` role. Since Google OAuth was not implemented, users are instead created manually by an Admin via the Admin Panel, with an explicit role assignment at creation time. The initial admin is created via a one-time `/auth/setup` endpoint.
+
+:star: **Added:** `suspended` role — a soft-delete state that prevents login.
 
 ---
 
 ## 4. Authentication & Access Control
 
 ### Provider
-- **Google OAuth 2.0** only. No username/password login. No other OAuth providers.
+
+:large_orange_diamond: **MODIFIED** — Google OAuth 2.0 was specified but **not implemented**. Authentication uses **email + password** login instead.
+
+- `POST /auth/login` — Email/password authentication
+- `POST /auth/setup` — One-time initial admin account creation
+- `POST /auth/change-password` — Password change (mandatory on first login)
 
 ### Domain Restriction
-- Only accounts ending in `@pdoexperts.fb.com` are permitted to authenticate.
-- Any Google account outside this domain must be rejected at the OAuth callback with a clear error message: *"Access is restricted to PDO Experts team members."*
+:white_check_mark: **BUILT** — Only `@pdoexperts.fb.com` email addresses are permitted. Enforced at login and user creation.
 
 ### Session Management
-- Sessions are managed via **signed JWT cookies** (HttpOnly, Secure, SameSite=Strict).
-- Session TTL: **8 hours** (configurable by Admin in a future phase).
-- JWTs are signed with a secret stored in **Cloudflare Workers Secrets**.
-- On each request, the Worker validates the JWT and checks the user's role from D1.
+:white_check_mark: **BUILT** — Sessions managed via signed JWT cookies.
+- :large_orange_diamond: Session TTL: **30 days** (spec said 8 hours)
+- :white_check_mark: HttpOnly, Secure, SameSite cookies
+- :white_check_mark: HS256 HMAC signing with secret stored in Cloudflare Workers Secrets
+- :white_check_mark: JWT validated on each request; user role checked from D1
+- :star: Also supports Bearer token authentication for cross-origin scenarios
 
 ### First Login Flow
-1. User visits the app and is redirected to Google OAuth.
-2. Google returns the user's email. Worker verifies the domain is `@pdoexperts.fb.com`.
-3. If domain check fails → redirect to `/auth/error?reason=domain`.
-4. If domain check passes and user is **new** → create user record with role `viewer`, send email alert to all Admins and Devs (see Section 7.5).
-5. If user already exists → look up role from D1, issue JWT, redirect to role-appropriate landing page.
+:large_orange_diamond: **MODIFIED** — Since there is no Google OAuth:
+1. Admin creates the user account via the Admin Panel with a temporary password.
+2. User logs in with email + password at `/login`.
+3. If `must_change_password` flag is set → redirected to `/change-password`.
+4. User sets their own password and optionally a notification email.
+5. Redirected to role-appropriate landing page.
 
 ### Role-Based Landing Pages
+:white_check_mark: **BUILT** as specified.
+
 | Role | Landing Page |
 |---|---|
 | Viewer | `/board` (read-only) |
@@ -111,6 +136,8 @@ Access is restricted exclusively to `@pdoexperts.fb.com` Google accounts. All ba
 ---
 
 ## 5. Architecture
+
+### :white_check_mark: BUILT as specified.
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -126,117 +153,120 @@ Access is restricted exclusively to `@pdoexperts.fb.com` Google accounts. All ba
 │                            │   Cloudflare D1       │   │
 │                            │   (SQLite Database)   │   │
 │                            └──────────────────────┘   │
+│                                       │                │
+│                            ┌──────────▼───────────┐   │
+│                            │   Cloudflare R2       │   │
+│                            │   (File Storage)      │   │
+│                            └──────────────────────┘   │
 └────────────────────────────────────────────────────────┘
                          │
               ┌──────────▼───────────┐
-              │  Google OAuth 2.0    │
-              │  (accounts.google)   │
-              └──────────────────────┘
-                         │
-              ┌──────────▼───────────┐
               │  Transactional Email │
-              │  (Resend or Mailgun) │
+              │  (Resend)            │
               └──────────────────────┘
 ```
 
 ### Stack Summary
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + Vite + TypeScript |
-| Styling | Tailwind CSS + shadcn/ui |
-| Drag & Drop | `@dnd-kit/core` |
-| Routing | React Router v6 |
-| State Management | Zustand or React Query |
-| API | Cloudflare Workers (Hono framework recommended) |
-| Database | Cloudflare D1 (SQLite) |
-| Auth | Google OAuth 2.0, JWT via Workers |
-| Email | Resend (preferred) or Mailgun |
-| Deployment | Cloudflare Pages (frontend) + Workers (API) |
-| CI/CD | GitHub Actions → `wrangler deploy` |
+| Layer | Specified | Implemented | Status |
+|---|---|---|---|
+| Frontend | React 18 + Vite + TypeScript | React + Vite + TypeScript | :white_check_mark: |
+| Styling | Tailwind CSS + shadcn/ui | Tailwind CSS v4 (custom components, no shadcn) | :large_orange_diamond: |
+| Drag & Drop | `@dnd-kit/core` | `@dnd-kit/core` + `@dnd-kit/sortable` | :white_check_mark: |
+| Routing | React Router v6 | React Router v6 | :white_check_mark: |
+| State Management | Zustand or React Query | Zustand | :white_check_mark: |
+| API | Cloudflare Workers (Hono recommended) | Cloudflare Workers with Hono | :white_check_mark: |
+| Database | Cloudflare D1 (SQLite) | Cloudflare D1 | :white_check_mark: |
+| Auth | Google OAuth 2.0, JWT | Email/password, JWT | :large_orange_diamond: |
+| Email | Resend (preferred) or Mailgun | Resend | :white_check_mark: |
+| Deployment | Cloudflare Pages + Workers | Cloudflare Pages + Workers | :white_check_mark: |
+| CI/CD | GitHub Actions → `wrangler deploy` | GitHub Actions → `wrangler deploy` | :white_check_mark: |
+| Fonts | Inter (Google Fonts) | DM Sans + JetBrains Mono | :large_orange_diamond: |
 
 ---
 
 ## 6. Data Models
 
-### `users`
+### `users` — :white_check_mark: BUILT with extensions
+
+**Original spec fields — all present:**
+- `id` (TEXT PRIMARY KEY, UUID) :white_check_mark:
+- `email` (TEXT UNIQUE NOT NULL) :white_check_mark:
+- `name` (TEXT NOT NULL) :large_orange_diamond: Split into `first_name` + `last_name`
+- `avatar_url` (TEXT) :x: NOT BUILT — no avatar URLs stored
+- `role` (TEXT NOT NULL DEFAULT 'viewer') :white_check_mark: + added `suspended` state
+- `created_at` (INTEGER NOT NULL) :white_check_mark:
+- `last_login` (INTEGER) :white_check_mark:
+
+**:star: Added fields beyond spec:**
+- `password_hash` (TEXT) — bcrypt hashed password
+- `must_change_password` (INTEGER DEFAULT 1) — force password change on first login
+- `first_name` / `last_name` (TEXT) — split name fields
+- `theme` (TEXT DEFAULT 'dark') — dark/light theme preference
+- `ticket_size` (TEXT DEFAULT 'small') — card size preference
+- `notification_email` (TEXT) — separate email for notifications
+- `notify_ticket_created` (INTEGER DEFAULT 1) — email preference toggle
+- `notify_ticket_assigned` (INTEGER DEFAULT 1) — email preference toggle
+- `notify_ticket_done` (INTEGER DEFAULT 1) — email preference toggle
+- `notify_ticket_comment` (INTEGER DEFAULT 1) — email preference toggle
+- `notify_user_registered` (INTEGER DEFAULT 1) — email preference toggle
+
+### `tickets` — :white_check_mark: BUILT with extensions
+
+**Original spec fields — all present:**
+- `id` (TEXT PRIMARY KEY) :white_check_mark:
+- `ticket_number` (INTEGER UNIQUE NOT NULL) :white_check_mark:
+- `title` (TEXT NOT NULL) :white_check_mark:
+- `description` (TEXT) :white_check_mark:
+- `status` (TEXT NOT NULL DEFAULT 'backlog') :white_check_mark:
+- `priority` (TEXT NOT NULL DEFAULT 'p2') :white_check_mark:
+- `assignee_id` :large_orange_diamond: Replaced by `ticket_assignees` junction table (supports multiple assignees)
+- `submitter_id` (TEXT NOT NULL REFERENCES users(id)) :white_check_mark:
+- `due_date` :large_orange_diamond: Renamed to `edc` (estimated delivery/completion)
+- `sort_order` (REAL NOT NULL) :white_check_mark:
+- `created_at` (INTEGER NOT NULL) :white_check_mark:
+- `updated_at` (INTEGER NOT NULL) :white_check_mark:
+
+**:star: Added fields beyond spec:**
+- `product_id` (TEXT REFERENCES products(id)) — links to product/project
+- `product_version` (TEXT) — version string
+- `ticket_type` (TEXT DEFAULT 'bug') — bug or feature classification
+
+### `ticket_tags` — :white_check_mark: BUILT as specified.
+
+### `comments` — :white_check_mark: BUILT as specified.
+
+### `attachments` — :white_check_mark: BUILT as specified.
+
+### `audit_log` — :large_orange_diamond: Table created in migrations but not actively populated or displayed in the UI.
+
+### :star: Additional tables added beyond spec:
+
+**`columns`** — Custom workflow column definitions:
 ```sql
-CREATE TABLE users (
-  id          TEXT PRIMARY KEY,          -- UUID
-  email       TEXT UNIQUE NOT NULL,
-  name        TEXT NOT NULL,
-  avatar_url  TEXT,
-  role        TEXT NOT NULL DEFAULT 'viewer',  -- viewer | decision_maker | dev | admin
-  created_at  INTEGER NOT NULL,          -- Unix timestamp
-  last_login  INTEGER
-);
+- id, name, sort_order, color, is_initial, is_terminal, created_at
+- Pre-seeded: backlog, todo, in_progress, in_review, done
 ```
 
-### `tickets`
+**`products`** — Project/product catalog:
 ```sql
-CREATE TABLE tickets (
-  id           TEXT PRIMARY KEY,         -- UUID
-  ticket_number INTEGER UNIQUE NOT NULL, -- Auto-increment display ID (e.g. PDO-42)
-  title        TEXT NOT NULL,
-  description  TEXT,
-  status       TEXT NOT NULL DEFAULT 'backlog',  -- backlog | todo | in_progress | in_review | done
-  priority     TEXT NOT NULL DEFAULT 'p2',       -- p0 | p1 | p2 | p3
-  assignee_id  TEXT REFERENCES users(id),
-  submitter_id TEXT NOT NULL REFERENCES users(id),
-  due_date     INTEGER,                  -- Unix timestamp, nullable
-  sort_order   REAL NOT NULL,            -- Float for fractional indexing (drag-and-drop ordering)
-  created_at   INTEGER NOT NULL,
-  updated_at   INTEGER NOT NULL
-);
+- id, name, abbreviation, color, default_owner_id, created_at
+- Pre-seeded: Genie, Genman, Picker
 ```
 
-### `ticket_tags`
+**`ticket_assignees`** — Multi-assignee junction table:
 ```sql
-CREATE TABLE ticket_tags (
-  ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  tag       TEXT NOT NULL,
-  PRIMARY KEY (ticket_id, tag)
-);
+- ticket_id, user_id (composite primary key)
 ```
 
-### `comments`
+**`push_subscriptions`** — Browser push notification subscriptions:
 ```sql
-CREATE TABLE comments (
-  id         TEXT PRIMARY KEY,
-  ticket_id  TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  author_id  TEXT NOT NULL REFERENCES users(id),
-  body       TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER
-);
+- id, user_id, endpoint, p256dh, auth, created_at
 ```
 
-### `attachments`
+**`ticket_last_seen`** — Track when users last viewed tickets:
 ```sql
-CREATE TABLE attachments (
-  id         TEXT PRIMARY KEY,
-  ticket_id  TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
-  uploader_id TEXT NOT NULL REFERENCES users(id),
-  filename   TEXT NOT NULL,
-  url        TEXT NOT NULL,             -- Cloudflare R2 public URL
-  mime_type  TEXT,
-  size_bytes INTEGER,
-  created_at INTEGER NOT NULL
-);
-```
-
-> **Note on attachments:** File storage uses **Cloudflare R2**. The Worker generates a pre-signed upload URL; the frontend uploads directly to R2, then posts the resulting URL to the API to create the attachment record. R2 should be added as a bound bucket in `wrangler.toml`.
-
-### `audit_log` *(optional for v1, recommended)*
-```sql
-CREATE TABLE audit_log (
-  id         TEXT PRIMARY KEY,
-  actor_id   TEXT REFERENCES users(id),
-  action     TEXT NOT NULL,             -- e.g. "ticket.moved", "ticket.created"
-  target_id  TEXT,                      -- ticket ID or user ID
-  payload    TEXT,                      -- JSON blob of changed fields
-  created_at INTEGER NOT NULL
-);
+- ticket_id, user_id, last_seen_at (composite primary key)
 ```
 
 ---
@@ -246,363 +276,431 @@ CREATE TABLE audit_log (
 ### 7.1 Authentication Flow
 
 **Routes:**
-- `GET /auth/google` — Redirects to Google's OAuth consent screen
-- `GET /auth/google/callback` — Handles OAuth callback, validates domain, issues JWT
-- `POST /auth/logout` — Clears the session cookie
-- `GET /auth/error` — Renders error page with reason
+- :x: `GET /auth/google` — Not built (no Google OAuth)
+- :x: `GET /auth/google/callback` — Not built (no Google OAuth)
+- :white_check_mark: `POST /auth/logout` — Clears the session cookie
+- :x: `GET /auth/error` — Not built (errors handled inline on login page)
+
+**:star: Routes added:**
+- `POST /auth/login` — Email/password authentication
+- `POST /auth/setup` — One-time initial admin creation
+- `POST /auth/change-password` — Password change + notification email setup
 
 **Frontend:**
-- Unauthenticated users on any route are redirected to `/login`
-- `/login` page shows only a "Sign in with Google" button, company logo, and app name
-- No username/password fields anywhere in the application
+- :white_check_mark: Unauthenticated users on any route are redirected to `/login`
+- :large_orange_diamond: `/login` page shows email/password form (not Google sign-in button)
+- :white_check_mark: No Google OAuth UI anywhere in the application
 
 **Error states:**
-- Domain mismatch → friendly error: *"This app is only available to PDO Experts team members."*
-- New user pending role → show a holding page: *"Your account is pending. You've been assigned Viewer access. A team admin has been notified."*
+- :large_orange_diamond: Domain mismatch → enforced at user creation by admin, not at OAuth callback
+- :x: New user pending role holding page — not needed since admins create accounts with assigned roles
 
 ---
 
 ### 7.2 Ticket Submission (Decision Maker Portal)
 
-**Route:** `/submit`
+**Route:** `/submit` — :white_check_mark: BUILT
 
-**Access:** Decision Maker, Admin. Devs also have access. Viewers see a read-only list of their own submitted tickets only.
+**Access:** :white_check_mark: Decision Maker, Dev, Admin. Viewers cannot access.
 
 **Submission Form Fields:**
 
-| Field | Type | Required | Notes |
+| Field | Spec | Status | Notes |
 |---|---|---|---|
-| Title | Text input | ✅ | Max 200 chars |
-| Description | Textarea (markdown-supported) | ✅ | Min 20 chars |
-| Priority | Dropdown (P0–P3) | ✅ | Default: P2 |
-| Tags | Multi-select / free-text | ❌ | Comma-separated, max 5 |
-| Due Date | Date picker | ❌ | Must be future date |
-| Attachments | File upload | ❌ | Max 3 files, 10MB each. PDF, PNG, JPG, GIF, DOCX, XLSX accepted |
+| Title | Text input, max 200 chars | :white_check_mark: BUILT | |
+| Description | Textarea, markdown, min 20 chars | :white_check_mark: BUILT | |
+| Priority | Dropdown P0–P3, default P2 | :white_check_mark: BUILT | |
+| Tags | Multi-select, comma-separated, max 5 | :white_check_mark: BUILT | |
+| Due Date | Date picker, future date | :large_orange_diamond: BUILT as "EDC" (Estimated Delivery/Completion) | |
+| Attachments | File upload, max 3, 10MB each | :white_check_mark: BUILT | R2 storage with presigned URLs |
+| :star: Product | Dropdown | ADDED | Select from admin-defined products |
+| :star: Product Version | Text input | ADDED | Version string |
+| :star: Ticket Type | Bug / Feature | ADDED | Classification field |
+| :star: Assignees | Multi-select | ADDED | Assign one or more devs/admins |
 
-**Priority Labels:**
-- **P0** — Critical / Blocker
-- **P1** — High Priority
-- **P2** — Normal (default)
-- **P3** — Low / Nice to Have
+**Priority Labels:** :white_check_mark: All four levels implemented with color coding.
 
 **On Submit:**
-1. Worker creates the ticket record in D1 with status `backlog`.
-2. Ticket number is auto-assigned sequentially (`PDO-1`, `PDO-2`, etc.).
-3. Submitter sees a success state: *"Ticket PDO-42 submitted successfully."* with a link to view it.
-4. Email notification sent to all users with `dev` or `admin` role (see Section 7.5).
+1. :white_check_mark: Worker creates ticket in D1 with status `backlog` (or initial column).
+2. :white_check_mark: Ticket number auto-assigned sequentially (`PDO-1`, `PDO-2`, etc.).
+3. :white_check_mark: Success feedback shown to submitter.
+4. :white_check_mark: Email notification sent to devs/admins (respecting individual preferences).
 
 **My Submissions View:**
-- Below the form, Decision Makers see a table of their own submitted tickets.
-- Columns: Ticket #, Title, Priority, Status, Created Date.
-- Clicking a row opens a read-only ticket detail modal.
+- :x: NOT BUILT as specified — there is no "My Submissions" table below the form on the submit page. However, the board's "My Tickets" filter achieves similar functionality.
 
 ---
 
 ### 7.3 Kanban Board (Dev View)
 
-**Route:** `/board`
+**Route:** `/board` — :white_check_mark: BUILT
 
-**Access:** All roles (Viewers read-only, Decision Makers read-only, Devs full interaction, Admin full interaction).
+**Access:** :white_check_mark: All roles (Viewers/Decision Makers read-only, Devs/Admin full interaction).
 
-#### Board Layout
+#### Board Layout — :white_check_mark: BUILT
 
-Five fixed columns displayed horizontally:
+:large_orange_diamond: Originally specified as five fixed columns. Actual implementation uses **dynamic columns** managed by admins, pre-seeded with the five specified columns (Backlog, To Do, In Progress, In Review, Done).
 
-```
-┌──────────┐  ┌──────────┐  ┌─────────────┐  ┌───────────┐  ┌──────┐
-│ Backlog  │  │  To Do   │  │ In Progress │  │ In Review │  │ Done │
-├──────────┤  ├──────────┤  ├─────────────┤  ├───────────┤  ├──────┤
-│  card    │  │  card    │  │   card      │  │   card    │  │ card │
-│  card    │  │  card    │  │   card      │  │           │  │ card │
-│  ...     │  │  ...     │  │   ...       │  │           │  │ ...  │
-└──────────┘  └──────────┘  └─────────────┘  └───────────┘  └──────┘
-```
+#### Ticket Cards — :white_check_mark: BUILT
 
-#### Ticket Cards
+| Element | Status | Notes |
+|---|---|---|
+| Ticket number (e.g., `PDO-42`) | :white_check_mark: | Top of card |
+| Title (bold, truncated) | :white_check_mark: | |
+| Priority badge (color-coded) | :white_check_mark: | P0=red, P1=orange, P2=indigo, P3=gray |
+| Assignee avatar | :large_orange_diamond: | Shows initials (no uploaded avatar images), supports multiple assignees |
+| Due date (red if overdue) | :white_check_mark: | Shown as "EDC", green when in terminal column |
+| Comment count | :x: | Not shown on card |
+| Attachment count | :x: | Not shown on card |
+| Tag chips (max 2, +N) | :white_check_mark: | Max 5 shown with +N overflow |
+| :star: Product badge | ADDED | Color-coded abbreviation |
+| :star: Ticket type badge | ADDED | Bug (red) / Feature (green) |
+| :star: Created date | ADDED | Shown on card |
+| :star: Two card sizes | ADDED | Small/large toggle, per-user preference |
 
-Each card displays:
-- Ticket number (e.g., `PDO-42`) — muted, top left
-- Title — bold, truncated to 2 lines
-- Priority badge (color-coded: P0=red, P1=orange, P2=blue, P3=gray)
-- Assignee avatar (if assigned)
-- Due date (shown in red if overdue)
-- Comment count icon + count
-- Attachment count icon + count
-- Tag chips (max 2 visible, `+N more` if overflow)
+#### Drag & Drop — :white_check_mark: BUILT
 
-#### Drag & Drop
+- :white_check_mark: Devs and Admins can drag cards between columns using `@dnd-kit`
+- :white_check_mark: Card order preserved using fractional indexing on `sort_order`
+- :white_check_mark: Optimistic UI update on drop
+- :white_check_mark: Viewers and Decision Makers cannot drag cards
+- :star: Active drag overlay shown during drag
+- :star: Custom collision detection (pointerWithin + rectIntersection)
 
-- Devs and Admins can drag cards between columns.
-- Card order within a column is preserved using **fractional indexing** on `sort_order`.
-- Optimistic UI update on drop; rolled back on API error with toast notification.
-- Viewers and Decision Makers cannot drag cards (pointer-events disabled).
+#### Ticket Detail Modal — :white_check_mark: BUILT
 
-#### Ticket Detail Modal
+- :white_check_mark: All form fields editable inline (Devs/Admin only)
+- :white_check_mark: Assignee selector (searchable, supports multiple assignees)
+- :white_check_mark: Status selector (changing status moves the card)
+- :white_check_mark: Comments thread with input box
+- :white_check_mark: Attachment list with download links and upload button
+- :x: Audit trail timeline — not shown in modal (table exists but not wired to UI)
+- :star: @Mentions in comments with autocomplete
 
-Clicking any card opens a side-panel or modal with full ticket detail:
+#### Filtering & Search — :large_orange_diamond: PARTIALLY BUILT
 
-- All form fields editable inline (Devs/Admin only)
-- Assignee selector (searchable dropdown of `dev` and `admin` users)
-- Status selector (mirrors column position; changing status moves the card)
-- Comments thread with markdown rendering and input box
-- Attachment list with download links and upload button
-- Audit trail (if implemented): last N status changes shown as timeline
-
-#### Filtering & Search
-
-Toolbar above the board includes:
-- **Search** — filters cards by title/description text (client-side, debounced)
-- **Assignee filter** — multi-select dropdown
-- **Priority filter** — multi-select (P0, P1, P2, P3)
-- **Tag filter** — multi-select
-- **My tickets** — toggle to show only tickets assigned to the current user
-- **Clear filters** — resets all
+| Filter | Status | Notes |
+|---|---|---|
+| Search (title/description) | :white_check_mark: BUILT | |
+| Assignee filter | :x: NOT BUILT | Not as a standalone filter on the toolbar |
+| Priority filter | :white_check_mark: BUILT | Multi-select P0–P3 |
+| Tag filter | :x: NOT BUILT | API supports it, but no UI filter |
+| My tickets toggle | :white_check_mark: BUILT | Shows tickets assigned to current user |
+| Clear filters | :white_check_mark: BUILT | Resets all |
+| :star: Product filter | ADDED | Single-select dropdown |
 
 ---
 
 ### 7.4 Admin Panel
 
-**Route:** `/admin`
+**Route:** `/admin` — :white_check_mark: BUILT
 
-**Access:** Admin only. Attempting to access as any other role returns a 403 page.
+**Access:** :white_check_mark: Admin only. Other roles cannot access.
 
-#### User Management
+#### User Management — :white_check_mark: BUILT
 
-- Table of all registered users: Name, Email, Role, Last Login, Joined Date
-- Inline role change: dropdown per row, saves on change with confirmation dialog
-- Cannot demote or delete the last Admin (guard this in both UI and API)
-- "Remove user" action: soft-deletes user (sets `role = 'suspended'`), does not cascade-delete their tickets
+| Feature | Status | Notes |
+|---|---|---|
+| Table of all users | :white_check_mark: | Name, Email, Role, Last Login, Joined Date |
+| Inline role change | :white_check_mark: | Dropdown with confirmation |
+| Cannot demote last Admin | :white_check_mark: | Guarded in both UI and API |
+| Remove user (soft-delete) | :white_check_mark: | Sets role to `suspended` |
+| :star: Create user | ADDED | Admin can create accounts with email, name, temp password, role |
+| :star: Edit user | ADDED | Admin can edit name, email, role |
+| :star: Permanent delete | ADDED | Full deletion with FK cascade cleanup |
 
-#### System Stats (optional for v1)
-- Total tickets by status
-- Tickets created this week vs last week
-- Open P0/P1 count
+#### System Stats
+- :large_orange_diamond: Basic stats available on a separate `/stats` page (not embedded in admin panel). Shows ticket counts, completion rates, project breakdown.
+
+#### :star: Project/Product Management — ADDED (not in original spec)
+
+- List products with abbreviation, color, default owner
+- Create/edit/delete products
+- Color picker and owner selector
+- Guard: cannot delete product with assigned tickets
+
+#### :star: Column/Status Management — ADDED (not in original spec)
+
+- List columns with sort order and color
+- Create/edit/delete columns
+- Reorder columns via admin UI
+- Initial/terminal column flags
+- Guards: cannot delete column with tickets, must keep at least one initial and one terminal column
 
 ---
 
 ### 7.5 Notifications
 
-All emails are sent from a verified sender address (e.g., `noreply@pdoexperts.fb.com`) via the configured transactional email provider (Resend preferred).
+#### Email — :white_check_mark: BUILT
 
-| Event | Recipients | Subject | Body Summary |
+All emails sent via **Resend** from `PDO Kanban <noreply@pre-pro.cc>`.
+
+| Event | Spec | Status | Notes |
 |---|---|---|---|
-| New ticket submitted | All Devs + Admins | `[PDO-42] New ticket: {title}` | Title, priority, submitter name, link to ticket |
-| New user signed up | All Admins + Devs | `New user signed in: {name}` | Name, email, note that they've been assigned Viewer role, link to Admin panel |
-| Ticket assigned to me | Assignee only | `You've been assigned PDO-42` | Ticket title, priority, due date, link |
-| Ticket moved to In Review | Submitter only | `Your ticket PDO-42 is in review` | Status update, link to ticket |
-| Ticket moved to Done | Submitter only | `Your ticket PDO-42 is done` | Status update, link to ticket |
+| New ticket submitted | All Devs + Admins | :white_check_mark: BUILT | Also notifies product default owner |
+| New user signed up | All Admins + Devs | :large_orange_diamond: BUILT | Triggered when admin creates user, sent to admins with notification pref enabled |
+| Ticket assigned to me | Assignee only | :white_check_mark: BUILT | |
+| Ticket moved to In Review | Submitter only | :large_orange_diamond: BUILT | Generic status change email for any column move, not just In Review |
+| Ticket moved to Done | Submitter only | :large_orange_diamond: BUILT | Generic status change email for any column move, not just Done |
+| :star: New comment posted | | ADDED | Sent to submitter + other assignees |
 
-**Implementation notes:**
-- Email sends are fire-and-forget from the Worker (non-blocking).
-- Failures are logged but do not fail the triggering API request.
-- Use environment variables for the email API key: `EMAIL_API_KEY` in `wrangler.toml` secrets.
-- Email templates should be simple, plain HTML with inline styles — no external CSS files.
+**:star: Notification Preferences — ADDED (not in original spec)**
+- 5 per-user toggles: ticket created, assigned, done, comments, user registered
+- Separate notification email address (optional, falls back to login email)
+- All preferences respected before sending
+
+**Implementation:**
+- :white_check_mark: Fire-and-forget from the Worker (non-blocking)
+- :white_check_mark: HTML email templates with inline styles
+- :white_check_mark: Subject line sanitization (HTML escaping, length capping)
+
+#### :star: Web Push Notifications — ADDED (not in original spec)
+
+- Service worker (`sw.js`) for push event handling
+- VAPID authentication with key generation
+- AES-128-GCM encryption
+- Browser Notification API integration
+- Per-user subscription management via API
+- Push sent for: new ticket, assignment, comment, status change
+- Deep linking on notification click
 
 ---
 
 ## 8. UI/UX Guidelines
 
-### Design Principles
-- **Clean and dense** — optimized for power users who live on the board all day
-- **Dark mode first** — use a dark neutral base (e.g. `zinc-950`) with light text
-- **Minimal chrome** — no unnecessary sidebars, ads, or decorative elements
-- **Fast feel** — optimistic UI updates, skeleton loaders, no full-page reloads
+### Design Principles — :white_check_mark: All principles followed.
 
-### Color Palette (suggested)
+- :white_check_mark: Clean and dense — optimized for power users
+- :white_check_mark: Dark mode first — dark neutral base with light text
+- :white_check_mark: Minimal chrome — no unnecessary sidebars or decorative elements
+- :white_check_mark: Fast feel — optimistic UI updates, no full-page reloads
 
-| Token | Value | Usage |
+### Color Palette
+
+:large_orange_diamond: **MODIFIED** — Uses a warm slate palette instead of zinc, with a desaturated indigo accent (`#7c7fdf`) instead of standard indigo-500.
+
+| Element | Spec | Implemented |
 |---|---|---|
-| `bg-base` | `#09090b` (zinc-950) | App background |
-| `bg-surface` | `#18181b` (zinc-900) | Cards, modals, panels |
-| `bg-elevated` | `#27272a` (zinc-800) | Hover states, inputs |
-| `text-primary` | `#fafafa` (zinc-50) | Headings, primary text |
-| `text-muted` | `#71717a` (zinc-500) | Secondary text, metadata |
-| `accent` | `#6366f1` (indigo-500) | Buttons, active states, links |
-| `p0-color` | `#ef4444` (red-500) | P0 priority badge |
-| `p1-color` | `#f97316` (orange-500) | P1 priority badge |
-| `p2-color` | `#6366f1` (indigo-500) | P2 priority badge |
-| `p3-color` | `#71717a` (zinc-500) | P3 priority badge |
+| App background | `#09090b` (zinc-950) | Warm dark slate (custom) |
+| Cards/surfaces | `#18181b` (zinc-900) | Custom dark surface |
+| Accent | `#6366f1` (indigo-500) | `#7c7fdf` (desaturated indigo) |
+| P0 badge | Red | :white_check_mark: Red |
+| P1 badge | Orange | :white_check_mark: Orange |
+| P2 badge | Indigo | :white_check_mark: Indigo |
+| P3 badge | Gray | :white_check_mark: Gray |
 
 ### Typography
-- Font: **Inter** (Google Fonts, self-hosted via Cloudflare)
-- Base size: 14px
-- Headings: 16–24px, font-weight 600
+
+:large_orange_diamond: **MODIFIED:**
+- Spec: **Inter** — Implemented: **DM Sans** (primary) + **JetBrains Mono** (monospace)
+- :white_check_mark: Smooth font rendering with antialiasing
 
 ### Component Library
-- Use **shadcn/ui** for forms, modals, dropdowns, tooltips, and toasts
-- Build custom components only for the kanban board and ticket cards
+
+:large_orange_diamond: **MODIFIED:**
+- Spec called for **shadcn/ui** — **not used**. All components are custom-built with Tailwind CSS v4.
 
 ### Responsive Behavior
-- The kanban board is primarily a desktop experience. On screens < 768px, columns stack vertically.
-- The submission form and admin panel are fully responsive.
+- :white_check_mark: Kanban board is primarily desktop. Columns handle small screens.
+- :white_check_mark: Submission form and admin panel are responsive.
+- :star: Dark/light theme toggle (spec said dark-only in v1, but both themes were built)
 
 ---
 
 ## 9. API Specification
 
-All endpoints are served from the Cloudflare Worker. Base path: `/api/v1`
+All endpoints served from Cloudflare Worker. Base path: `/api/v1`
 
-All authenticated endpoints require a valid JWT cookie. Invalid/missing JWT → `401 Unauthorized`.
+All authenticated endpoints require valid JWT cookie. Invalid/missing JWT → `401 Unauthorized`.
 
 ### Auth
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/auth/google` | Redirect to Google OAuth |
-| `GET` | `/auth/google/callback` | OAuth callback, set cookie |
-| `POST` | `/auth/logout` | Clear session cookie |
+| Method | Path | Spec | Status |
+|---|---|---|---|
+| `GET` | `/auth/google` | Redirect to Google OAuth | :x: NOT BUILT |
+| `GET` | `/auth/google/callback` | OAuth callback | :x: NOT BUILT |
+| `POST` | `/auth/logout` | Clear session cookie | :white_check_mark: BUILT |
+| `POST` | `/auth/login` | :star: | ADDED — email/password auth |
+| `POST` | `/auth/setup` | :star: | ADDED — initial admin creation |
+| `POST` | `/auth/change-password` | :star: | ADDED — password change + notification email |
 
 ### Users
 
-| Method | Path | Role Required | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/users/me` | Any | Get current user profile + role |
-| `GET` | `/api/v1/users` | Admin | List all users |
-| `PATCH` | `/api/v1/users/:id/role` | Admin | Change a user's role |
-| `DELETE` | `/api/v1/users/:id` | Admin | Soft-delete (suspend) user |
+| Method | Path | Role | Spec | Status |
+|---|---|---|---|---|
+| `GET` | `/api/v1/users/me` | Any | Get current user | :white_check_mark: BUILT |
+| `GET` | `/api/v1/users` | Admin | List all users | :white_check_mark: BUILT |
+| `PATCH` | `/api/v1/users/:id/role` | Admin | Change role | :white_check_mark: BUILT |
+| `DELETE` | `/api/v1/users/:id` | Admin | Suspend/delete user | :white_check_mark: BUILT |
+| `POST` | `/api/v1/users` | Admin | :star: | ADDED — create user |
+| `PATCH` | `/api/v1/users/:id` | Admin | :star: | ADDED — edit user |
+| `PATCH` | `/api/v1/users/me/theme` | Any | :star: | ADDED — set theme preference |
+| `PATCH` | `/api/v1/users/me/ticket-size` | Any | :star: | ADDED — set card size preference |
+| `PATCH` | `/api/v1/users/me/profile` | Any | :star: | ADDED — update name, email |
+| `PATCH` | `/api/v1/users/me/email-preferences` | Any | :star: | ADDED — notification toggles |
+| `GET` | `/api/v1/users/names` | Any | :star: | ADDED — user names for @mentions |
 
 ### Tickets
 
-| Method | Path | Role Required | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/tickets` | Any | List all tickets (with filters: status, priority, assignee, tag) |
-| `POST` | `/api/v1/tickets` | Decision Maker+ | Create a new ticket |
-| `GET` | `/api/v1/tickets/:id` | Any | Get ticket detail |
-| `PATCH` | `/api/v1/tickets/:id` | Dev+ (or own ticket for DM) | Update ticket fields |
-| `PATCH` | `/api/v1/tickets/:id/move` | Dev+ | Move ticket to new column + reorder |
-| `DELETE` | `/api/v1/tickets/:id` | Admin | Delete ticket |
+| Method | Path | Role | Spec | Status |
+|---|---|---|---|---|
+| `GET` | `/api/v1/tickets` | Any | List tickets (filtered) | :white_check_mark: BUILT |
+| `POST` | `/api/v1/tickets` | DM+ | Create ticket | :white_check_mark: BUILT |
+| `GET` | `/api/v1/tickets/:id` | Any | Get ticket detail | :white_check_mark: BUILT |
+| `PATCH` | `/api/v1/tickets/:id` | Dev+ / own | Update ticket | :white_check_mark: BUILT |
+| `PATCH` | `/api/v1/tickets/:id/move` | Dev+ | Move + reorder | :white_check_mark: BUILT |
+| `DELETE` | `/api/v1/tickets/:id` | Admin | Delete ticket | :white_check_mark: BUILT |
 
 ### Comments
 
-| Method | Path | Role Required | Description |
-|---|---|---|---|
-| `GET` | `/api/v1/tickets/:id/comments` | Any | List comments on a ticket |
-| `POST` | `/api/v1/tickets/:id/comments` | Decision Maker+ | Add a comment |
-| `PATCH` | `/api/v1/comments/:id` | Author or Admin | Edit a comment |
-| `DELETE` | `/api/v1/comments/:id` | Author or Admin | Delete a comment |
+| Method | Path | Role | Spec | Status |
+|---|---|---|---|---|
+| `GET` | `/api/v1/tickets/:id/comments` | Any | List comments | :white_check_mark: BUILT |
+| `POST` | `/api/v1/tickets/:id/comments` | DM+ | Add comment | :white_check_mark: BUILT |
+| `PATCH` | `/api/v1/comments/:id` | Author/Admin | Edit comment | :white_check_mark: BUILT |
+| `DELETE` | `/api/v1/comments/:id` | Author/Admin | Delete comment | :white_check_mark: BUILT |
 
 ### Attachments
 
-| Method | Path | Role Required | Description |
+| Method | Path | Role | Spec | Status |
+|---|---|---|---|---|
+| `POST` | `/api/v1/tickets/:id/attachments/upload-url` | DM+ | Presigned R2 URL | :white_check_mark: BUILT |
+| `POST` | `/api/v1/tickets/:id/attachments` | DM+ | Register attachment | :white_check_mark: BUILT |
+| `DELETE` | `/api/v1/attachments/:id` | Admin/uploader | Delete attachment | :white_check_mark: BUILT |
+| `PUT` | `/api/v1/tickets/:id/attachments/upload` | DM+ | :star: | ADDED — direct upload to R2 |
+| `GET` | `/api/v1/tickets/:id/attachments` | Any | :star: | ADDED — list attachments |
+
+### :star: Columns (ADDED — not in original spec)
+
+| Method | Path | Role | Description |
 |---|---|---|---|
-| `POST` | `/api/v1/tickets/:id/attachments/upload-url` | Decision Maker+ | Get pre-signed R2 upload URL |
-| `POST` | `/api/v1/tickets/:id/attachments` | Decision Maker+ | Register attachment after R2 upload |
-| `DELETE` | `/api/v1/attachments/:id` | Admin or uploader | Delete attachment record + R2 object |
+| `GET` | `/api/v1/columns` | Any | List columns |
+| `POST` | `/api/v1/columns` | Admin | Create column |
+| `PATCH` | `/api/v1/columns/:id` | Admin | Edit column |
+| `POST` | `/api/v1/columns/reorder` | Admin | Batch reorder |
+| `DELETE` | `/api/v1/columns/:id` | Admin | Delete column |
 
-### Response Format
+### :star: Projects/Products (ADDED — not in original spec)
 
-All responses use JSON. Success:
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/projects` | Any | List products |
+| `POST` | `/api/v1/projects` | Admin | Create product |
+| `PATCH` | `/api/v1/projects/:id` | Admin | Edit product |
+| `DELETE` | `/api/v1/projects/:id` | Admin | Delete product |
+
+### :star: Push Notifications (ADDED — not in original spec)
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/push/vapid-key` | Any | Get public VAPID key |
+| `POST` | `/api/v1/push/subscribe` | Any | Register push subscription |
+| `DELETE` | `/api/v1/push/unsubscribe` | Any | Unregister subscription |
+
+### Response Format — :white_check_mark: BUILT as specified.
+
 ```json
 { "data": { ... }, "error": null }
-```
-Error:
-```json
-{ "data": null, "error": { "code": "FORBIDDEN", "message": "You do not have permission to perform this action." } }
 ```
 
 ---
 
 ## 10. Deployment
 
-### Repository Structure (suggested)
+### Repository Structure — :white_check_mark: BUILT as specified.
 
 ```
 /
 ├── frontend/          # React + Vite app
 │   ├── src/
+│   │   ├── pages/     # LoginPage, BoardPage, SubmitPage, AdminPage, etc.
+│   │   ├── components/# KanbanColumn, TicketCard, TicketDetailModal, etc.
+│   │   ├── store.ts   # Zustand state management
+│   │   └── main.tsx
+│   ├── public/
+│   │   └── sw.js      # Service worker for push notifications
 │   └── vite.config.ts
 ├── worker/            # Cloudflare Worker (Hono)
 │   ├── src/
 │   │   ├── index.ts
-│   │   ├── routes/
-│   │   ├── middleware/
-│   │   └── db/
+│   │   ├── routes/    # auth, tickets, comments, attachments, users, columns, projects, push
+│   │   ├── middleware/ # auth middleware
+│   │   ├── email.ts   # Resend email service
+│   │   └── push.ts    # Web push service
 │   └── wrangler.toml
-├── migrations/        # D1 SQL migration files
+├── migrations/        # 16 D1 SQL migration files (0001–0016)
 └── .github/
     └── workflows/
         └── deploy.yml
 ```
 
-### `wrangler.toml` (Worker)
+### `wrangler.toml` — :white_check_mark: BUILT
 
-```toml
-name = "pdo-kanban-api"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
+- :white_check_mark: D1 database binding configured
+- :white_check_mark: R2 bucket binding for attachments
+- :white_check_mark: Frontend URL environment variable
+- :white_check_mark: Secrets via `wrangler secret put` (JWT_SECRET, EMAIL_API_KEY, VAPID keys)
+- :x: Google OAuth client ID/secret not configured (not needed — no OAuth)
 
-[[d1_databases]]
-binding = "DB"
-database_name = "pdo-kanban-db"
-database_id = "<YOUR_D1_DATABASE_ID>"
+### Cloudflare Pages — :white_check_mark: BUILT
 
-[[r2_buckets]]
-binding = "ATTACHMENTS"
-bucket_name = "pdo-kanban-attachments"
+- :white_check_mark: Vite build for frontend
+- :white_check_mark: `VITE_API_BASE_URL` environment variable
 
-[vars]
-GOOGLE_CLIENT_ID = "<your-client-id>"
-ALLOWED_DOMAIN = "pdoexperts.fb.com"
-FRONTEND_URL = "https://kanban.pdoexperts.fb.com"
-
-# Secrets (set via `wrangler secret put`):
-# GOOGLE_CLIENT_SECRET
-# JWT_SECRET
-# EMAIL_API_KEY
-```
-
-### Cloudflare Pages (Frontend)
-
-- Connect GitHub repo to Cloudflare Pages
-- Build command: `cd frontend && npm run build`
-- Output directory: `frontend/dist`
-- Set `VITE_API_BASE_URL` environment variable to the Worker URL
-
-### CI/CD
+### CI/CD — :white_check_mark: BUILT
 
 GitHub Actions workflow on push to `main`:
-1. Run lint + type-check
-2. Run unit tests (if present)
-3. `wrangler deploy` for the Worker
-4. Cloudflare Pages auto-deploys on push via GitHub integration
+1. :white_check_mark: Type-check (tsc for frontend + worker)
+2. :white_check_mark: Build (Vite frontend)
+3. :white_check_mark: D1 migrations applied before deploy
+4. :white_check_mark: `wrangler deploy` for the Worker
+- :x: Lint step not included
+- :x: Unit tests not included (none written)
 
-### D1 Migrations
+### D1 Migrations — :white_check_mark: BUILT
 
-- Use numbered SQL migration files in `/migrations/`
-- Apply via `wrangler d1 migrations apply pdo-kanban-db`
-- Run in CI before deploying the Worker
+- 16 numbered SQL migration files in `/migrations/`
+- Applied via `wrangler d1 migrations apply`
 
 ---
 
 ## 11. Out of Scope (v1)
 
-- Slack or webhook integrations
-- Customizable kanban columns (fixed 5-column layout)
-- Sprint or milestone planning
-- Time tracking or logged hours
-- SLA tracking
-- Two-factor authentication (Google handles this)
-- Dark/light mode toggle (dark mode only in v1)
-- Ticket watching / subscription model beyond assignee + submitter
-- Public read-only board sharing
-- CSV/Excel export
+| Item | Status |
+|---|---|
+| Slack or webhook integrations | :white_check_mark: Stayed out of scope |
+| Customizable kanban columns | :large_orange_diamond: **Was built** — admins can add/edit/reorder/delete columns |
+| Sprint or milestone planning | :white_check_mark: Stayed out of scope |
+| Time tracking or logged hours | :white_check_mark: Stayed out of scope |
+| SLA tracking | :white_check_mark: Stayed out of scope |
+| Two-factor authentication | :white_check_mark: Stayed out of scope |
+| Dark/light mode toggle | :large_orange_diamond: **Was built** — both themes with per-user toggle |
+| Ticket watching / subscriptions | :white_check_mark: Stayed out of scope |
+| Public read-only board sharing | :white_check_mark: Stayed out of scope |
+| CSV/Excel export | :white_check_mark: Stayed out of scope |
 
 ---
 
 ## 12. Future Phases
 
 ### Phase 2
-- Admin-configurable kanban columns (add, rename, reorder, archive)
-- Slack notifications in addition to email
-- Dark/light mode toggle
-- Ticket watching: any user can subscribe to a ticket for notifications
+
+| Item | Status |
+|---|---|
+| Admin-configurable kanban columns | :white_check_mark: **Already built in v1** |
+| Slack notifications | :x: Not built |
+| Dark/light mode toggle | :white_check_mark: **Already built in v1** |
+| Ticket watching | :x: Not built |
 
 ### Phase 3
-- Sprint/milestone grouping on the board
-- Burn-down or velocity charts in the Admin panel
-- Bulk ticket operations (re-assign, re-prioritize, move)
-- Ticket dependencies / blocking relationships
-- CSV export from the Admin panel
+
+| Item | Status |
+|---|---|
+| Sprint/milestone grouping | :x: Not built |
+| Burn-down or velocity charts | :x: Not built (basic stats page exists) |
+| Bulk ticket operations | :x: Not built |
+| Ticket dependencies / blocking | :x: Not built |
+| CSV export from Admin panel | :x: Not built |
 
 ---
 
@@ -610,9 +708,70 @@ GitHub Actions workflow on push to `main`:
 
 | # | Question | Owner | Status |
 |---|---|---|---|
-| 1 | What transactional email provider does the team already use or prefer? (Resend vs Mailgun vs SendGrid) | Infrastructure | Open |
-| 2 | Should the `Done` column auto-archive tickets after N days? | Product | Open |
-| 3 | Is `kanban.pdoexperts.fb.com` the intended subdomain, or will this live on a separate domain? | Infrastructure | Open |
-| 4 | What is the expected peak number of concurrent users? (Relevant for D1 read replica needs at scale) | Engineering | Open |
-| 5 | Should Decision Makers be able to edit or retract a submitted ticket after a Dev has moved it off the Backlog? | Product | Open |
-| 6 | Is there a tagging taxonomy to standardize upfront, or are tags completely free-form? | Product | Open |
+| 1 | What transactional email provider? | Infrastructure | **Resolved — Resend** |
+| 2 | Should Done auto-archive after N days? | Product | Open |
+| 3 | Intended subdomain? | Infrastructure | **Resolved — pdo-kanban.pages.dev (Cloudflare Pages)** |
+| 4 | Expected peak concurrent users? | Engineering | Open |
+| 5 | Can DMs edit tickets after moved off Backlog? | Product | Open |
+| 6 | Tag taxonomy or free-form? | Product | **Resolved — Free-form tags, max 5 per ticket** |
+
+---
+
+## 14. Features Added Beyond Original Spec
+
+The following significant features were built but were not part of the original PRD:
+
+### Product/Project Management
+- Products table with name, abbreviation, color, and default owner
+- Tickets linked to products for categorization
+- Product filter on the Kanban board
+- Admin CRUD for products
+
+### Multi-Assignee Support
+- Original spec had single `assignee_id` — implementation uses a junction table supporting multiple assignees per ticket
+- Searchable multi-select assignee picker in ticket forms
+
+### Ticket Type Classification
+- Bug vs Feature classification with color-coded badges on cards
+
+### List View (Alternative to Kanban)
+- Full table-based view with sortable columns (7 sort keys)
+- Inline editing for title, description, EDC, and assignees
+- Toggle between Kanban and List view on the board page
+
+### Web Push Notifications
+- Full service worker implementation with VAPID authentication
+- AES-128-GCM encryption for push payloads
+- Deep linking on notification click
+- Per-user subscription management
+
+### @Mentions in Comments
+- Autocomplete user names when typing `@` in comments
+- Visual highlighting of mentions
+
+### Profile Page
+- Dedicated `/profile` page for user settings
+- Password change (self-service)
+- Notification email configuration
+- Email notification preference toggles (5 categories)
+- Theme preference (dark/light)
+- Card size preference (small/large)
+- Push notification subscription management
+
+### Stats Page
+- Dedicated `/stats` page with ticket statistics
+- Completion rates and project breakdown
+
+### Admin User Creation
+- Admins can create user accounts directly (with temporary password)
+- Mandatory password change on first login
+- Permanent user deletion with FK cascade cleanup (in addition to soft-delete/suspend)
+
+### Column Management
+- Admin-configurable workflow columns (originally listed as Phase 2)
+- Column colors, ordering, and initial/terminal flags
+- Guards preventing deletion of columns with tickets
+
+### Dark/Light Theme Toggle
+- Originally listed as Phase 2 / out-of-scope for v1
+- Both themes fully implemented with per-user persistence
