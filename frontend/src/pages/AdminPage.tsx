@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type User, type Project, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
 
@@ -11,6 +12,7 @@ const roleLabels: Record<string, string> = {
 };
 
 export function AdminPage() {
+  const navigate = useNavigate();
   const currentUser = useStore((s) => s.user);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,6 +205,13 @@ export function AdminPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8 overflow-y-auto h-full">
+      <button onClick={() => navigate('/board')}
+        className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text-primary transition-colors mb-6">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Back to board
+      </button>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-xl font-bold text-text-primary tracking-tight">Admin</h1>
