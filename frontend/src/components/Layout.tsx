@@ -29,11 +29,9 @@ export function Layout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!user) return null;
-
-  const canArchive = ['dev', 'admin'].includes(user.role);
-  const isAdmin = user.role === 'admin';
-  const initials = userInitials(user);
+  const canArchive = !!user && ['dev', 'admin'].includes(user.role);
+  const isAdmin = user?.role === 'admin';
+  const initials = user ? userInitials(user) : '';
 
   const navItems: NavItem[] = [
     {
@@ -41,15 +39,15 @@ export function Layout() {
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
     },
     {
-      to: '/milestones', label: 'Roadmap',
+      to: '/milestones', label: 'Roadmap', visible: !!user,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
     },
     {
-      to: '/projects', label: 'Projects',
+      to: '/projects', label: 'Projects', visible: !!user,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
     },
     {
-      to: '/attachments', label: 'Files',
+      to: '/attachments', label: 'Files', visible: !!user,
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>,
     },
     {
@@ -101,7 +99,20 @@ export function Layout() {
 
         {/* Bottom section: user + collapse */}
         <div className={`border-t border-border-subtle ${sidebarOpen ? 'px-2' : 'px-1'} py-2 space-y-1`}>
+          {/* Log in (anonymous) */}
+          {!user && (
+            <button
+              onClick={() => navigate('/login')}
+              className={`w-full flex items-center gap-2.5 rounded-lg py-2 transition-colors hover:bg-bg-hover text-text-secondary hover:text-text-primary ${sidebarOpen ? 'px-3' : 'px-0 justify-center'}`}
+              title={sidebarOpen ? undefined : 'Log in'}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="shrink-0"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+              {sidebarOpen && <span className="text-[12px] font-medium">Log in</span>}
+            </button>
+          )}
+
           {/* User menu */}
+          {user && (
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -151,6 +162,7 @@ export function Layout() {
               </div>
             )}
           </div>
+          )}
 
           {/* Collapse toggle */}
           <button

@@ -16,7 +16,7 @@ import { TicketDetailPage } from './pages/TicketDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
 
-function ProtectedRoute({ children, allowedRoles, skipPasswordCheck }: { children: React.ReactNode; allowedRoles?: string[]; skipPasswordCheck?: boolean }) {
+function ProtectedRoute({ children, allowedRoles, skipPasswordCheck, allowAnonymous }: { children: React.ReactNode; allowedRoles?: string[]; skipPasswordCheck?: boolean; allowAnonymous?: boolean }) {
   const user = useStore((s) => s.user);
   const initialized = useStore((s) => s.initialized);
   const mustChangePassword = useStore((s) => s.mustChangePassword);
@@ -28,7 +28,11 @@ function ProtectedRoute({ children, allowedRoles, skipPasswordCheck }: { childre
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace />;
+  // Public read-only pages (board, ticket detail) render without an account.
+  if (!user) {
+    if (allowAnonymous) return <>{children}</>;
+    return <Navigate to="/login" replace />;
+  }
   // Force password change before accessing any page (except the change-password page itself)
   if (mustChangePassword && !skipPasswordCheck) return <Navigate to="/change-password" replace />;
   if (allowedRoles && !allowedRoles.includes(user.role)) {
@@ -45,10 +49,10 @@ function ProtectedRoute({ children, allowedRoles, skipPasswordCheck }: { childre
 }
 
 function CatchAll() {
-  const user = useStore((s) => s.user);
   const initialized = useStore((s) => s.initialized);
   if (!initialized) return null;
-  return <Navigate to={user ? '/board' : '/login'} replace />;
+  // The board is viewable without an account, so it is the default landing page.
+  return <Navigate to="/board" replace />;
 }
 
 export default function App() {
@@ -75,7 +79,7 @@ export default function App() {
           <Route
             path="/board"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowAnonymous>
                 <BoardPage />
               </ProtectedRoute>
             }
@@ -83,7 +87,7 @@ export default function App() {
           <Route
             path="/tickets/:id"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowAnonymous>
                 <TicketDetailPage />
               </ProtectedRoute>
             }
