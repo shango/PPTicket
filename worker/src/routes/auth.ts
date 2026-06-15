@@ -5,7 +5,7 @@ import { signJWT, verifyJWT } from '../lib/jwt';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { sendEmail, newUserEmail } from '../lib/email';
 
-const LOGIN_DOMAIN = 'pdoexperts.fb.com';
+const LOGIN_DOMAINS = ['pdoexperts.fb.com', 'varax.io'];
 
 function getCookieOptions(c: any) {
   const isLocal = c.env.FRONTEND_URL?.includes('localhost');
@@ -30,8 +30,8 @@ authRoutes.post('/login', async (c) => {
 
   const normalizedEmail = email.toLowerCase().trim();
   const emailDomain = normalizedEmail.split('@')[1];
-  if (emailDomain !== LOGIN_DOMAIN) {
-    return c.json({ data: null, error: { code: 'FORBIDDEN', message: `Please sign in with your @${LOGIN_DOMAIN} email.` } }, 403);
+  if (!LOGIN_DOMAINS.includes(emailDomain)) {
+    return c.json({ data: null, error: { code: 'FORBIDDEN', message: `Please sign in with your @${LOGIN_DOMAINS[0]} email.` } }, 403);
   }
 
   const user = await c.env.DB.prepare('SELECT id, email, name, role, password_hash, must_change_password FROM users WHERE email = ?').bind(normalizedEmail).first<User & { password_hash: string; must_change_password: number }>();
