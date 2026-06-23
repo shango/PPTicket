@@ -15,6 +15,14 @@ export function clearToken() {
   localStorage.removeItem('session_token');
 }
 
+// Invoked when a request comes back 401 (expired/invalid session). The store wires this
+// up to reset the cached user and redirect to login, so a stale session can't leave the
+// app in a "looks logged in but every write fails" state.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   const token = getToken();
@@ -28,6 +36,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (res.status === 401) {
     clearToken();
+    onUnauthorized?.();
     throw new Error('Unauthorized');
   }
 

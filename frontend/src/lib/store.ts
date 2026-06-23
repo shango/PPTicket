@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api, clearToken, type User, type TicketWithMeta } from './api';
+import { api, clearToken, setUnauthorizedHandler, type User, type TicketWithMeta } from './api';
 
 interface AppState {
   user: User | null;
@@ -76,3 +76,16 @@ export const useStore = create<AppState>((set, get) => ({
     window.location.href = '/login';
   },
 }));
+
+// When any request 401s, a session we believed was valid has expired or been invalidated.
+// Reset the cached user and send the user to login. Guarded on `user` so anonymous board
+// viewing (where getMe and protected reads legitimately 401) isn't disrupted, and so a
+// failed login attempt on the login page doesn't trigger a redirect loop.
+setUnauthorizedHandler(() => {
+  if (!useStore.getState().user) return;
+  clearToken();
+  useStore.setState({ user: null, mustChangePassword: false });
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+});
