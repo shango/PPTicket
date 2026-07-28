@@ -131,8 +131,13 @@ export function BoardPage() {
     let result = tickets;
     if (search) {
       const q = search.toLowerCase();
+      // Also match the ticket number, with or without the PDO- prefix, so a
+      // reference from a chat message or an email can be pasted straight in.
+      const numeric = q.replace(/^pdo-?/, '');
       result = result.filter(
-        (t) => t.title.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q)
+        (t) => t.title.toLowerCase().includes(q)
+          || t.description?.toLowerCase().includes(q)
+          || (!!numeric && String(t.ticket_number) === numeric)
       );
     }
     if (priorityFilter.length > 0) {

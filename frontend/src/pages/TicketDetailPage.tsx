@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api, uploadAttachmentFile, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
 import { toast } from '../lib/toast';
+import { AssigneeSelect } from '../components/AssigneeSelect';
 
 const priorityOptions = [
   { value: 'p0', label: 'P0 — Critical' },
@@ -10,67 +11,6 @@ const priorityOptions = [
   { value: 'p2', label: 'P2 — Normal' },
   { value: 'p3', label: 'P3 — Low' },
 ];
-
-function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
-  const [search, setSearch] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filtered = users.filter((u) => !selectedIds.includes(u.id) && u.name.toLowerCase().includes(search.toLowerCase()));
-  const selected = users.filter((u) => selectedIds.includes(u.id));
-
-  return (
-    <div ref={ref} className="relative">
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1.5">
-          {selected.map((u) => (
-            <span key={u.id} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 bg-accent/10 text-accent rounded-full font-medium">
-              {u.name}
-              <button type="button" onClick={() => onChange(selectedIds.filter(id => id !== u.id))}
-                className="hover:text-danger ml-0.5">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
-        placeholder={selected.length > 0 ? 'Add more...' : 'Search users...'}
-        className="w-full bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[13px]"
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto">
-          {filtered.map((u) => (
-            <button key={u.id} type="button"
-              onClick={() => { onChange([...selectedIds, u.id]); setSearch(''); }}
-              className="w-full text-left px-2.5 py-1.5 text-[13px] text-text-secondary hover:bg-bg-elevated hover:text-text-primary">
-              {u.name}
-            </button>
-          ))}
-        </div>
-      )}
-      {open && filtered.length === 0 && search && (
-        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 px-2.5 py-2 text-[12px] text-text-muted">
-          No matching users
-        </div>
-      )}
-    </div>
-  );
-}
 
 function renderCommentBody(body: string) {
   const parts = body.split(/(@[\w][\w\s]*?)(?=\s@|\s*$|[.!?,;:])/g);

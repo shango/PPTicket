@@ -132,6 +132,14 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
               {ticket.attachment_count}
             </span>
           )}
+          {ticket.comment_count > 0 && (
+            <span className="flex items-center gap-0.5" title={`${ticket.comment_count} comment${ticket.comment_count > 1 ? 's' : ''}`}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>
+              </svg>
+              {ticket.comment_count}
+            </span>
+          )}
           {ticket.edc ? (
             <span className={isTerminal ? 'text-success' : isPastEdc ? 'text-danger' : ''}>
               {isTerminal ? 'Done' : 'EDC'} {new Date(ticket.edc * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}

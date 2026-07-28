@@ -32,6 +32,7 @@ export function Layout() {
   }, []);
 
   const canArchive = !!user && ['dev', 'admin'].includes(user.role);
+  const canSubmit = !!user && ['decision_maker', 'dev', 'admin'].includes(user.role);
   const isAdmin = user?.role === 'admin';
   const initials = user ? userInitials(user) : '';
 
@@ -39,6 +40,12 @@ export function Layout() {
     {
       to: '/board', label: 'Board',
       icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
+    },
+    {
+      // Previously only reachable from the board toolbar, which is awkward for
+      // decision makers whose whole job here is submitting.
+      to: '/submit', label: 'New Ticket', visible: canSubmit,
+      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
     },
     {
       to: '/milestones', label: 'Roadmap', visible: !!user,

@@ -281,12 +281,11 @@ export interface TicketWithMeta {
   milestone_name: string | null;
   tags: string[];
   attachment_count: number;
+  comment_count: number;
   cover_image_id: string | null;
 }
 
-export interface TicketDetail extends TicketWithMeta {
-  comment_count: number;
-}
+export type TicketDetail = TicketWithMeta;
 
 export interface Comment {
   id: string;

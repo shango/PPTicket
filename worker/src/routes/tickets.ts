@@ -54,6 +54,7 @@ ticketRoutes.get('/', async (c) => {
 
   let query = `SELECT t.*, GROUP_CONCAT(DISTINCT tt.tag) as tags, GROUP_CONCAT(DISTINCT ta.user_id) as assignee_ids, GROUP_CONCAT(DISTINCT a.name) as assignee_names, p.name as product_name, p.abbreviation as product_abbreviation, p.color as product_color, u.name as submitter_name,
     (SELECT COUNT(*) FROM attachments WHERE ticket_id = t.id AND comment_id IS NULL) as attachment_count,
+    (SELECT COUNT(*) FROM comments WHERE ticket_id = t.id) as comment_count,
     (SELECT id FROM attachments WHERE ticket_id = t.id AND comment_id IS NULL AND mime_type LIKE 'image/%' ORDER BY created_at ASC LIMIT 1) as cover_image_id,
     ms.name as milestone_name
     FROM tickets t LEFT JOIN ticket_tags tt ON t.id = tt.ticket_id LEFT JOIN ticket_assignees ta ON t.id = ta.ticket_id LEFT JOIN users a ON ta.user_id = a.id LEFT JOIN products p ON t.product_id = p.id LEFT JOIN users u ON t.submitter_id = u.id LEFT JOIN milestones ms ON t.milestone_id = ms.id`;

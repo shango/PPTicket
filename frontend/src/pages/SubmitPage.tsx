@@ -1,68 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type TicketWithMeta, type Project, type User, type Milestone } from '../lib/api';
+import { api, type TicketWithMeta, type Project, type User, type Milestone, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
-
-function AssigneeSelect({ users, selectedIds, onChange }: { users: User[]; selectedIds: string[]; onChange: (ids: string[]) => void }) {
-  const [search, setSearch] = useState('');
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
-
-  const filtered = users.filter((u) => !selectedIds.includes(u.id) && u.name.toLowerCase().includes(search.toLowerCase()));
-  const selected = users.filter((u) => selectedIds.includes(u.id));
-
-  return (
-    <div ref={ref} className="relative">
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-1.5">
-          {selected.map((u) => (
-            <span key={u.id} className="inline-flex items-center gap-1 text-[12px] px-2 py-0.5 bg-accent/10 text-accent rounded-full font-medium">
-              {u.name}
-              <button type="button" onClick={() => onChange(selectedIds.filter(id => id !== u.id))}
-                className="hover:text-danger ml-0.5">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        onFocus={() => setOpen(true)}
-        placeholder={selected.length > 0 ? 'Add more...' : 'Search users...'}
-        className="w-full bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[13px]"
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 max-h-36 overflow-y-auto">
-          {filtered.map((u) => (
-            <button key={u.id} type="button"
-              onClick={() => { onChange([...selectedIds, u.id]); setSearch(''); }}
-              className="w-full text-left px-2.5 py-1.5 text-[13px] text-text-secondary hover:bg-bg-elevated hover:text-text-primary">
-              {u.name}
-            </button>
-          ))}
-        </div>
-      )}
-      {open && filtered.length === 0 && search && (
-        <div className="absolute z-10 mt-1 w-full bg-bg-surface border border-border rounded-lg shadow-lg shadow-black/30 px-2.5 py-2 text-[12px] text-text-muted">
-          No matching users
-        </div>
-      )}
-    </div>
-  );
-}
+import { AssigneeSelect } from '../components/AssigneeSelect';
 
 export function SubmitPage() {
   const user = useStore((s) => s.user);
@@ -78,9 +18,12 @@ export function SubmitPage() {
     milestone_id: '',
   });
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
-  const [status, setStatus] = useState('backlog');
+  // Columns are admin-configurable, so the landing column cannot be a pair of
+  // hardcoded slugs - renaming or deleting "backlog"/"todo" broke creation.
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{ ticketNumber: number } | null>(null);
+  const [success, setSuccess] = useState<{ ticketNumber: number; ticketId: string } | null>(null);
   const [error, setError] = useState('');
   const [myTickets, setMyTickets] = useState<TicketWithMeta[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -89,6 +32,10 @@ export function SubmitPage() {
   useEffect(() => {
     api.getProjects().then(setProjects).catch(() => {});
     api.getMilestones({ status: 'open' }).then(setMilestones).catch(() => {});
+    api.getColumns().then((cols) => {
+      setColumns(cols);
+      setStatus((cols.find(c => c.is_initial) || cols[0])?.slug || '');
+    }).catch(() => {});
     if (canAssign) {
       api.getUsers().then((users) => {
         if (Array.isArray(users)) setDevUsers(users.filter(u => ['decision_maker', 'dev', 'admin'].includes(u.role)));
@@ -132,10 +79,10 @@ export function SubmitPage() {
         ...(canAssign ? { assignee_ids: assigneeIds, status } : {}),
       });
 
-      setSuccess({ ticketNumber: ticket.ticket_number });
+      setSuccess({ ticketNumber: ticket.ticket_number, ticketId: ticket.id });
       setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', milestone_id: '' });
       setAssigneeIds([]);
-      setStatus('backlog');
+      setStatus((columns.find(c => c.is_initial) || columns[0])?.slug || '');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -161,10 +108,18 @@ export function SubmitPage() {
       </div>
 
       {success && (
-        <div className="bg-success/8 border border-success/20 rounded-lg p-4 mb-6">
+        <div className="bg-success/8 border border-success/20 rounded-lg p-4 mb-6 flex items-center justify-between gap-3">
           <p className="text-success text-[13px]">
             Ticket <strong className="font-mono">PDO-{success.ticketNumber}</strong> submitted successfully.
           </p>
+          {/* The form used to just clear itself, leaving no way back to the
+              thing that was just created. */}
+          <button
+            onClick={() => navigate(`/tickets/${success.ticketId}`)}
+            className="text-[13px] text-success font-medium hover:underline shrink-0"
+          >
+            Open ticket
+          </button>
         </div>
       )}
 
@@ -203,9 +158,6 @@ export function SubmitPage() {
                 Feature
               </button>
             </div>
-            {!form.ticket_type && error && (
-              <p className="text-danger text-[11px] mt-1">Please select a ticket type</p>
-            )}
           </div>
           <div>
             <label className={fieldLabel}>Project <span className="text-danger">*</span></label>
@@ -226,25 +178,12 @@ export function SubmitPage() {
               <AssigneeSelect users={devUsers} selectedIds={assigneeIds} onChange={setAssigneeIds} />
             </div>
             <div>
-              <label className={fieldLabel}>Status</label>
-              <div className="flex gap-2 mt-1">
-                <button type="button" onClick={() => setStatus('backlog')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
-                    status === 'backlog'
-                      ? 'bg-accent/10 border-accent/40 text-accent'
-                      : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
-                  }`}>
-                  Backlog
-                </button>
-                <button type="button" onClick={() => setStatus('todo')}
-                  className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium border transition-all ${
-                    status === 'todo'
-                      ? 'bg-accent/10 border-accent/40 text-accent'
-                      : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border'
-                  }`}>
-                  To Do
-                </button>
-              </div>
+              <label className={fieldLabel} htmlFor="submit-status">Status</label>
+              <select id="submit-status" value={status} onChange={(e) => setStatus(e.target.value)} className={fieldInput}>
+                {columns.filter(c => !c.is_terminal).map(c => (
+                  <option key={c.id} value={c.slug}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         )}
@@ -313,7 +252,11 @@ export function SubmitPage() {
               <tbody>
                 {myTickets.map((t) => (
                   <tr key={t.id} className="border-t border-border-subtle hover:bg-bg-elevated/50 transition-colors">
-                    <td className="px-4 py-2.5 font-mono text-text-muted">PDO-{t.ticket_number}</td>
+                    <td className="px-4 py-2.5 font-mono text-text-muted">
+                      <button onClick={() => navigate(`/tickets/${t.id}`)} className="hover:text-accent transition-colors">
+                        PDO-{t.ticket_number}
+                      </button>
+                    </td>
                     <td className="px-4 py-2.5 text-text-primary">{t.title}</td>
                     <td className="px-4 py-2.5 uppercase text-text-muted font-mono text-[11px]">{t.priority}</td>
                     <td className="px-4 py-2.5 capitalize text-text-muted">{t.status.replace('_', ' ')}</td>
