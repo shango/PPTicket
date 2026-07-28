@@ -1,9 +1,14 @@
 const encoder = new TextEncoder();
 
-// OWASP Password Storage Cheat Sheet recommends >= 600,000 iterations for
-// PBKDF2-HMAC-SHA256. Stored hashes record the iteration count they were made
-// with, so this can be raised again later without invalidating existing ones.
-const PBKDF2_ITERATIONS = 600000;
+// Workers' WebCrypto rejects PBKDF2 above 100,000 iterations outright:
+//   NotSupportedError: Pbkdf2 failed: iteration counts above 100000 are not
+//   supported (requested 600000).
+// so this is the platform ceiling, not a tuning choice. OWASP asks for 600,000
+// for PBKDF2-HMAC-SHA256 and that is simply not reachable here. Note that
+// `wrangler dev` does NOT enforce the cap, so a higher value passes every local
+// test and then fails on deploy. Stored hashes record the count they were made
+// with, so this can still be raised if the platform limit ever lifts.
+const PBKDF2_ITERATIONS = 100000;
 const HASH_PREFIX = 'pbkdf2-sha256';
 
 // Hashes written before the format was versioned are `saltHex:hashHex` at 100k.
@@ -88,7 +93,12 @@ export async function verifyPassword(password: string, stored: string): Promise<
   return timingSafeEqual(computed, parsed.hash);
 }
 
-/** True when a stored hash uses an outdated format or iteration count. */
+/**
+ * True when a stored hash uses an outdated format or iteration count. While the
+ * platform ceiling and the legacy count are both 100,000 this is false for every
+ * legacy hash, so they keep their unversioned `salt:hash` form and no login does
+ * rehash work. It starts returning true again the moment the count is raised.
+ */
 export function needsRehash(stored: string): boolean {
   const parsed = parseStoredHash(stored);
   return !parsed || parsed.iterations < PBKDF2_ITERATIONS;
