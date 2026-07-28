@@ -50,7 +50,9 @@ export function LoginPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight mb-1">PDO Kanban</h1>
-          <p className="text-text-muted text-sm">Sign in with your @pdoexperts.fb.com email</p>
+          {/* The permitted domains are a server-side allowlist (LOGIN_EMAIL_DOMAINS)
+              and are no longer a single hardcoded domain, so do not name one here. */}
+          <p className="text-text-muted text-sm">Sign in with your work email</p>
         </div>
 
         {error && (
@@ -67,8 +69,9 @@ export function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="username"
               className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 text-sm"
-              placeholder="you@pdoexperts.fb.com"
+              placeholder="you@example.com"
             />
           </div>
           <div>
@@ -79,11 +82,13 @@ export function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full bg-bg-elevated border border-border rounded-lg px-3.5 py-2.5 pr-10 text-sm"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary"
               >
                 {showPassword ? (

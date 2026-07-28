@@ -33,6 +33,8 @@ function Toggle({ enabled, onChange, loading }: { enabled: boolean; onChange: ()
 export function ProfilePage() {
   const user = useStore((s) => s.user);
   const fetchUser = useStore((s) => s.fetchUser);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
@@ -66,15 +68,8 @@ export function ProfilePage() {
     } catch { /* ignore */ }
   }
 
-  async function handleToggleTheme() {
-    const newTheme = user!.theme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', newTheme);
-    try {
-      await api.updateTheme(newTheme);
-      await fetchUser();
-    } catch {
-      document.documentElement.setAttribute('data-theme', user!.theme || 'dark');
-    }
+  function handleToggleTheme() {
+    setTheme(theme === 'light' ? 'dark' : 'light');
   }
 
   async function handleToggleTicketSize() {
@@ -280,10 +275,10 @@ export function ProfilePage() {
             <div>
               <p className="text-[13px] font-medium text-text-primary">Theme</p>
               <p className="text-[12px] text-text-muted mt-0.5">
-                {user.theme === 'light' ? 'Light mode' : 'Dark mode'}
+                {theme === 'light' ? 'Light mode' : 'Dark mode'}
               </p>
             </div>
-            <Toggle enabled={user.theme === 'dark'} onChange={handleToggleTheme} />
+            <Toggle enabled={theme === 'dark'} onChange={handleToggleTheme} />
           </div>
           <div className="px-6 py-4 flex items-center justify-between">
             <div>

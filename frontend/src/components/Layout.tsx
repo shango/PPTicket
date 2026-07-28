@@ -15,6 +15,8 @@ export function Layout() {
   const logout = useStore((s) => s.logout);
   const sidebarOpen = useStore((s) => s.sidebarOpen);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
+  const theme = useStore((s) => s.theme);
+  const setTheme = useStore((s) => s.setTheme);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -164,6 +166,26 @@ export function Layout() {
           </div>
           )}
 
+          {/* Theme toggle. Deliberately outside the user menu so anonymous
+              viewers, who have no user row, can still switch. */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className={`w-full flex items-center rounded-lg py-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors ${sidebarOpen ? 'px-3 gap-3' : 'px-0 justify-center'}`}
+            title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          >
+            {theme === 'dark' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="shrink-0">
+                <circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="shrink-0">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            )}
+            {sidebarOpen && <span className="text-[11px]">{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>}
+          </button>
+
           {/* Collapse toggle */}
           <button
             onClick={toggleSidebar}
@@ -181,8 +203,10 @@ export function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-hidden">
+      {/* Main content. Pages that manage their own scrolling use h-full plus an
+          inner overflow container; the rest are plain documents, and without a
+          scroller here everything past the fold was unreachable. */}
+      <main className="flex-1 min-w-0 overflow-y-auto">
         <Outlet />
       </main>
     </div>

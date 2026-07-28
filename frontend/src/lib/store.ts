@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api, clearToken, setUnauthorizedHandler, type User, type TicketWithMeta } from './api';
+import { applyTheme, getTheme, type Theme } from './theme';
 
 interface AppState {
   user: User | null;
@@ -15,6 +16,8 @@ interface AppState {
   optimisticMoveTicket: (ticketId: string, newStatus: string, newSortOrder: number, edcOverride?: number | null) => void;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   setMustChangePassword: (v: boolean) => void;
   logout: () => Promise<void>;
 }
@@ -29,6 +32,7 @@ export const useStore = create<AppState>((set, get) => ({
   initialized: false,
   error: null,
   sidebarOpen: localStorage.getItem('sidebar_open') !== 'false',
+  theme: getTheme(),
 
   toggleSidebar: () => {
     const next = !get().sidebarOpen;
@@ -36,11 +40,20 @@ export const useStore = create<AppState>((set, get) => ({
     set({ sidebarOpen: next });
   },
 
+  // Applied locally first so the switch is instant and so anonymous viewers,
+  // who have no user row to save it to, still keep their choice.
+  setTheme: (theme) => {
+    applyTheme(theme);
+    set({ theme });
+    if (get().user) api.updateTheme(theme).catch(() => {});
+  },
+
   fetchUser: async () => {
     try {
       const user = await api.getMe();
-      document.documentElement.setAttribute('data-theme', user.theme || 'dark');
-      set({ user, mustChangePassword: !!user.must_change_password, initialized: true });
+      const theme: Theme = user.theme === 'light' ? 'light' : 'dark';
+      applyTheme(theme);
+      set({ user, theme, mustChangePassword: !!user.must_change_password, initialized: true });
     } catch {
       set({ user: null, initialized: true });
     }

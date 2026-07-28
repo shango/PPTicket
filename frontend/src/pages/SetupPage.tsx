@@ -28,11 +28,16 @@ export function SetupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg-base">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-bg-base px-4 py-10">
+      <div className="w-full max-w-[360px]">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-semibold text-accent mb-2">PDO Kanban</h1>
-          <p className="text-text-muted">Create your admin account to get started</p>
+          <div className="w-10 h-10 rounded-xl bg-accent/15 flex items-center justify-center mx-auto mb-4">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-accent">
+              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-text-primary tracking-tight mb-1">PDO Kanban</h1>
+          <p className="text-text-muted text-sm">Create your admin account to get started</p>
         </div>
 
         {error && (
