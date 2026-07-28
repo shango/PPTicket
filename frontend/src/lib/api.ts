@@ -129,11 +129,10 @@ export const api = {
     const qs = productId ? `?product=${productId}` : '';
     return request<AttachmentWithTicket[]>(`/api/v1/attachments${qs}`);
   },
-  attachmentDownloadUrl: (id: string) => {
-    const token = getToken();
-    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
-    return `${BASE}/api/v1/attachments/${id}/download${tokenParam}`;
-  },
+  // No credentials in the URL: attachment downloads are an anonymous public read
+  // (same as the board itself), and a token in a query string leaks into browser
+  // history, Referer headers, and request logs.
+  attachmentDownloadUrl: (id: string) => `${BASE}/api/v1/attachments/${id}/download`,
 
   // Subtasks
   getSubtasks: (ticketId: string) => request<SubTask[]>(`/api/v1/tickets/${ticketId}/subtasks`),

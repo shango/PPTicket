@@ -16,6 +16,20 @@ import { authMiddleware } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Env }>();
 
+// This Worker only ever serves JSON and R2 blobs - never HTML - so the browser
+// should not be sniffing content types, framing responses, or leaking referrers.
+// The attachment download route sets its own stricter CSP; skip it here so the
+// two do not collide.
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'no-referrer');
+  if (!c.res.headers.has('Content-Security-Policy')) {
+    c.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  }
+});
+
 app.use('*', async (c, next) => {
   const corsMiddleware = cors({
     origin: c.env.FRONTEND_URL,

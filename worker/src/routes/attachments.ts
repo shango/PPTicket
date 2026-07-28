@@ -28,6 +28,30 @@ attachmentRoutes.get('/', async (c) => {
   return c.json({ data: result.results, error: null });
 });
 
+// Content types we are willing to render in the browser. Everything else is
+// forced to download. SVG is deliberately excluded - it is an XML document that
+// can carry <script>, so rendering one inline from this origin would be stored
+// XSS against the API origin (where the session cookie lives).
+const INLINE_SAFE_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'application/pdf',
+  'text/plain',
+]);
+
+/**
+ * RFC 6266 Content-Disposition value. The plain `filename` is stripped down to
+ * ASCII with quotes and control characters removed (a raw CR/LF would let a
+ * filename inject response headers); `filename*` carries the real name.
+ */
+function contentDisposition(disposition: 'inline' | 'attachment', filename: string): string {
+  const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
 // GET /api/v1/attachments/:id/download — serve file from R2
 attachmentRoutes.get('/:id/download', async (c) => {
   const { id } = c.req.param();
@@ -43,9 +67,22 @@ attachmentRoutes.get('/:id/download', async (c) => {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'File not found in storage.' } }, 404);
   }
 
+  // mime_type is supplied by the uploading client, so it is untrusted input.
+  // Only serve it verbatim when it is on the safelist; anything else becomes an
+  // opaque download rather than something the browser might execute.
+  const declaredType = (attachment.mime_type || '').split(';')[0].trim().toLowerCase();
+  const inlineSafe = INLINE_SAFE_TYPES.has(declaredType);
+
   const headers = new Headers();
-  headers.set('Content-Type', attachment.mime_type || 'application/octet-stream');
-  headers.set('Content-Disposition', `inline; filename="${attachment.filename.replace(/"/g, '\\"')}"`);
+  headers.set('Content-Type', inlineSafe ? declaredType : 'application/octet-stream');
+  headers.set('Content-Disposition', contentDisposition(inlineSafe ? 'inline' : 'attachment', attachment.filename || 'download'));
+  // Defence in depth for the inline case: no sniffing away from the declared
+  // type, and a sandbox/no-source CSP so even a mislabelled document cannot run
+  // script or reach back into the origin.
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+  headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  headers.set('Referrer-Policy', 'no-referrer');
   if (object.size) headers.set('Content-Length', String(object.size));
 
   return new Response(object.body, { headers });
