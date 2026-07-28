@@ -62,9 +62,10 @@ export function ProjectsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => navigate(`/board`)}
+                        onClick={() => navigate(`/board?project=${encodeURIComponent(p.id)}`)}
                         className="text-[11px] text-text-muted hover:text-accent transition-colors"
-                        title="View on board"
+                        title={`View ${p.name} on the board`}
+                        aria-label={`View ${p.name} on the board`}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                           <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
