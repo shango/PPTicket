@@ -60,8 +60,10 @@ export const api = {
     request<{ token: string; must_change_password: boolean; user: User }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   setup: (data: { email: string; password: string; first_name: string; last_name: string }) =>
     request<{ token: string; user: User }>('/auth/setup', { method: 'POST', body: JSON.stringify(data) }),
+  // Changing a password revokes every other session, so the server hands back a
+  // freshly minted token for this device. Callers must store it.
   changePassword: (current_password: string, new_password: string, notification_email?: string) =>
-    request<{ message: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password, ...(notification_email ? { notification_email } : {}) }) }),
+    request<{ message: string; token: string }>('/auth/change-password', { method: 'POST', body: JSON.stringify({ current_password, new_password, ...(notification_email ? { notification_email } : {}) }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
   // Users

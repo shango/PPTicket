@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, setToken } from '../lib/api';
 import { useStore } from '../lib/store';
 
 export function ChangePasswordPage() {
@@ -21,7 +21,9 @@ export function ChangePasswordPage() {
 
     setLoading(true);
     try {
-      await api.changePassword(form.current, form.new, form.notificationEmail || undefined);
+      const result = await api.changePassword(form.current, form.new, form.notificationEmail || undefined);
+      // The old session was revoked server-side; keep this device signed in.
+      setToken(result.token);
       setMustChangePassword(false);
       navigate('/board', { replace: true });
     } catch (e: any) {

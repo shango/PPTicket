@@ -1,10 +1,19 @@
 import { Hono } from 'hono';
-import { Env, Role } from '../types';
+import { Env, AssignableRole, ASSIGNABLE_ROLES } from '../types';
 import { requireRole } from '../middleware/auth';
-import { hashPassword } from '../lib/password';
-import { sendEmail } from '../lib/email';
+import { hashPassword, validatePassword } from '../lib/password';
+import { isValidEmail, normalizeEmail, isAllowedDomain, domainRejectionMessage } from '../lib/email-policy';
 
 const USER_FIELDS = 'id, email, name, first_name, last_name, avatar_url, role, must_change_password, created_at, last_login';
+
+function isAssignableRole(role: unknown): role is AssignableRole {
+  return typeof role === 'string' && (ASSIGNABLE_ROLES as string[]).includes(role);
+}
+
+/** Invalidate every outstanding session for a user (role change, suspension, ...). */
+function revokeSessions(db: D1Database, userId: string) {
+  return db.prepare('UPDATE users SET token_version = token_version + 1 WHERE id = ?').bind(userId).run();
+}
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -45,11 +54,15 @@ userRoutes.patch('/me/profile', async (c) => {
   const values: any[] = [];
 
   if (body.first_name !== undefined) {
-    if (!body.first_name.trim()) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'First name is required.' } }, 400);
+    if (typeof body.first_name !== 'string' || !body.first_name.trim()) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'First name is required.' } }, 400);
+    }
     updates.push('first_name = ?'); values.push(body.first_name.trim());
   }
   if (body.last_name !== undefined) {
-    if (!body.last_name.trim()) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Last name is required.' } }, 400);
+    if (typeof body.last_name !== 'string' || !body.last_name.trim()) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Last name is required.' } }, 400);
+    }
     updates.push('last_name = ?'); values.push(body.last_name.trim());
   }
   if (body.first_name !== undefined || body.last_name !== undefined) {
@@ -58,9 +71,15 @@ userRoutes.patch('/me/profile', async (c) => {
     updates.push('name = ?'); values.push(`${fn} ${ln}`.trim());
   }
   if (body.email !== undefined) {
-    const normalizedEmail = body.email.toLowerCase().trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    if (!isValidEmail(body.email)) {
       return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
+    }
+    const normalizedEmail = normalizeEmail(body.email);
+    // The sign-in domain allowlist has to hold here too, otherwise a user could
+    // move their own account off an approved domain and lock themselves out -
+    // or park an account on a domain the allowlist was meant to exclude.
+    if (!isAllowedDomain(c.env, normalizedEmail)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: domainRejectionMessage(c.env) } }, 400);
     }
     const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(normalizedEmail, user.id).first();
     if (dup) return c.json({ data: null, error: { code: 'CONFLICT', message: 'Email already in use.' } }, 409);
@@ -70,11 +89,10 @@ userRoutes.patch('/me/profile', async (c) => {
     if (body.notification_email === null || body.notification_email === '') {
       updates.push('notification_email = NULL');
     } else {
-      const ne = body.notification_email.toLowerCase().trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ne)) {
+      if (!isValidEmail(body.notification_email)) {
         return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid notification email format.' } }, 400);
       }
-      updates.push('notification_email = ?'); values.push(ne);
+      updates.push('notification_email = ?'); values.push(normalizeEmail(body.notification_email));
     }
   }
 
@@ -127,25 +145,31 @@ userRoutes.get('/', requireRole('admin'), async (c) => {
 
 // POST /api/v1/users (Admin only — create user)
 userRoutes.post('/', requireRole('admin'), async (c) => {
-  const { email, first_name, last_name, password, role } = await c.req.json<{ email: string; first_name: string; last_name: string; password: string; role?: Role }>();
+  const { email, first_name, last_name, password, role } = await c.req.json<{ email: string; first_name: string; last_name: string; password: string; role?: AssignableRole }>();
 
-  if (!email || !first_name || !last_name || !password) {
+  if (!email || typeof first_name !== 'string' || typeof last_name !== 'string' || !first_name.trim() || !last_name.trim() || !password) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Email, first name, last name, and password are required.' } }, 400);
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+  if (!isValidEmail(email)) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
   }
-  if (password.length < 8) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Password must be at least 8 characters.' } }, 400);
+  const normalizedEmail = normalizeEmail(email);
+  // Without this check an admin can create an account that can never sign in,
+  // because /auth/login rejects addresses outside the allowlist.
+  if (!isAllowedDomain(c.env, normalizedEmail)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: domainRejectionMessage(c.env) } }, 400);
+  }
+  const passwordError = validatePassword(password);
+  if (passwordError) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: passwordError } }, 400);
   }
 
-  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase().trim()).first();
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(normalizedEmail).first();
   if (existing) {
     return c.json({ data: null, error: { code: 'CONFLICT', message: 'A user with this email already exists.' } }, 409);
   }
 
-  const validRoles: Role[] = ['viewer', 'decision_maker', 'dev', 'admin'];
-  const userRole = role && validRoles.includes(role) ? role : 'viewer';
+  const userRole: AssignableRole = isAssignableRole(role) ? role : 'viewer';
 
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
@@ -154,7 +178,7 @@ userRoutes.post('/', requireRole('admin'), async (c) => {
   const name = `${first_name.trim()} ${last_name.trim()}`;
   await c.env.DB.prepare(
     'INSERT INTO users (id, email, name, first_name, last_name, avatar_url, role, password_hash, must_change_password, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)'
-  ).bind(id, email.toLowerCase().trim(), name, first_name.trim(), last_name.trim(), null, userRole, passwordHash, now).run();
+  ).bind(id, normalizedEmail, name, first_name.trim(), last_name.trim(), null, userRole, passwordHash, now).run();
 
   const user = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
   return c.json({ data: user, error: null }, 201);
@@ -163,40 +187,63 @@ userRoutes.post('/', requireRole('admin'), async (c) => {
 // PATCH /api/v1/users/:id (Admin only — edit user)
 userRoutes.patch('/:id', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
-  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string; role?: Role }>();
+  const body = await c.req.json<{ first_name?: string; last_name?: string; email?: string; role?: AssignableRole }>();
+
+  const target = await c.env.DB.prepare('SELECT first_name, last_name, role FROM users WHERE id = ?').bind(id).first<{ first_name: string; last_name: string; role: string }>();
+  if (!target) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'User not found.' } }, 404);
+  }
 
   const updates: string[] = [];
   const values: any[] = [];
+  let roleChanged = false;
 
-  if (body.first_name !== undefined) { updates.push('first_name = ?'); values.push(body.first_name.trim()); }
-  if (body.last_name !== undefined) { updates.push('last_name = ?'); values.push(body.last_name.trim()); }
+  if (body.first_name !== undefined) {
+    if (typeof body.first_name !== 'string' || !body.first_name.trim()) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'First name is required.' } }, 400);
+    }
+    updates.push('first_name = ?'); values.push(body.first_name.trim());
+  }
+  if (body.last_name !== undefined) {
+    if (typeof body.last_name !== 'string' || !body.last_name.trim()) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Last name is required.' } }, 400);
+    }
+    updates.push('last_name = ?'); values.push(body.last_name.trim());
+  }
   if (body.first_name !== undefined || body.last_name !== undefined) {
     // Recompute name
-    const existing = await c.env.DB.prepare('SELECT first_name, last_name FROM users WHERE id = ?').bind(id).first<{ first_name: string; last_name: string }>();
-    const fn = body.first_name?.trim() || existing?.first_name || '';
-    const ln = body.last_name?.trim() || existing?.last_name || '';
+    const fn = body.first_name?.trim() || target.first_name || '';
+    const ln = body.last_name?.trim() || target.last_name || '';
     updates.push('name = ?'); values.push(`${fn} ${ln}`.trim());
   }
   if (body.email !== undefined) {
-    const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(body.email.toLowerCase().trim(), id).first();
+    if (!isValidEmail(body.email)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid email format.' } }, 400);
+    }
+    const normalizedEmail = normalizeEmail(body.email);
+    if (!isAllowedDomain(c.env, normalizedEmail)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: domainRejectionMessage(c.env) } }, 400);
+    }
+    const dup = await c.env.DB.prepare('SELECT id FROM users WHERE email = ? AND id != ?').bind(normalizedEmail, id).first();
     if (dup) return c.json({ data: null, error: { code: 'CONFLICT', message: 'Email already in use.' } }, 409);
-    updates.push('email = ?'); values.push(body.email.toLowerCase().trim());
+    updates.push('email = ?'); values.push(normalizedEmail);
   }
   if (body.role !== undefined) {
-    const validRoles: Role[] = ['viewer', 'decision_maker', 'dev', 'admin'];
-    if (!validRoles.includes(body.role)) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid role.' } }, 400);
+    if (!isAssignableRole(body.role)) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid role.' } }, 400);
     // Guard last admin
-    if (body.role !== 'admin') {
-      const target = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(id).first<{ role: string }>();
-      if (target?.role === 'admin') {
-        const count = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
-        if (count && count.count <= 1) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot demote the last admin.' } }, 403);
-      }
+    if (body.role !== 'admin' && target.role === 'admin') {
+      const count = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
+      if (count && count.count <= 1) return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot demote the last admin.' } }, 403);
     }
+    roleChanged = body.role !== target.role;
     updates.push('role = ?'); values.push(body.role);
   }
 
   if (updates.length === 0) return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'No fields to update.' } }, 400);
+
+  // The role is baked into the issued JWT, so a demotion has to invalidate
+  // existing sessions or the user keeps their old permissions until expiry.
+  if (roleChanged) updates.push('token_version = token_version + 1');
 
   values.push(id);
   await c.env.DB.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).bind(...values).run();
@@ -207,25 +254,27 @@ userRoutes.patch('/:id', requireRole('admin'), async (c) => {
 // PATCH /api/v1/users/:id/role (Admin only)
 userRoutes.patch('/:id/role', requireRole('admin'), async (c) => {
   const { id } = c.req.param();
-  const { role } = await c.req.json<{ role: Role }>();
+  const { role } = await c.req.json<{ role: AssignableRole }>();
 
-  const validRoles: Role[] = ['viewer', 'decision_maker', 'dev', 'admin'];
-  if (!validRoles.includes(role)) {
+  if (!isAssignableRole(role)) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid role.' } }, 400);
   }
 
+  const target = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(id).first<{ role: string }>();
+  if (!target) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'User not found.' } }, 404);
+  }
+
   // Guard: can't demote the last admin
-  if (role !== 'admin') {
-    const target = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(id).first<{ role: string }>();
-    if (target?.role === 'admin') {
-      const adminCount = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
-      if (adminCount && adminCount.count <= 1) {
-        return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot demote the last admin.' } }, 403);
-      }
+  if (role !== 'admin' && target.role === 'admin') {
+    const adminCount = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
+    if (adminCount && adminCount.count <= 1) {
+      return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot demote the last admin.' } }, 403);
     }
   }
 
-  await c.env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
+  // Sessions carry the role claim, so a change must evict outstanding tokens.
+  await c.env.DB.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').bind(role, id).run();
   const updated = await c.env.DB.prepare(`SELECT ${USER_FIELDS} FROM users WHERE id = ?`).bind(id).first();
   return c.json({ data: updated, error: null });
 });
@@ -241,7 +290,10 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
 
   // Guard: can't suspend the last admin
   const target = await c.env.DB.prepare('SELECT role FROM users WHERE id = ?').bind(id).first<{ role: string }>();
-  if (target?.role === 'admin') {
+  if (!target) {
+    return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'User not found.' } }, 404);
+  }
+  if (target.role === 'admin') {
     const adminCount = await c.env.DB.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").first<{ count: number }>();
     if (adminCount && adminCount.count <= 1) {
       return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Cannot suspend the last admin.' } }, 403);
@@ -252,6 +304,7 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
 
   if (permanent) {
     // Clean up all references before deleting the user row
+    await revokeSessions(c.env.DB, id);
     await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(id).run();
     await c.env.DB.prepare('DELETE FROM ticket_last_seen WHERE user_id = ?').bind(id).run();
@@ -265,6 +318,7 @@ userRoutes.delete('/:id', requireRole('admin'), async (c) => {
     return c.json({ data: { message: 'User permanently deleted' }, error: null });
   }
 
-  await c.env.DB.prepare("UPDATE users SET role = 'suspended' WHERE id = ?").bind(id).run();
+  // Suspension has to kill live sessions immediately, not at token expiry.
+  await c.env.DB.prepare("UPDATE users SET role = 'suspended', token_version = token_version + 1 WHERE id = ?").bind(id).run();
   return c.json({ data: { message: 'User suspended' }, error: null });
 });

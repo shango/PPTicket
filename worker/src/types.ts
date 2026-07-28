@@ -1,4 +1,10 @@
-export type Role = 'viewer' | 'decision_maker' | 'dev' | 'admin';
+// 'suspended' is a real value stored in users.role, so it belongs in the union.
+// It is deliberately excluded from AssignableRole: nothing may grant it directly,
+// it is only ever set by the suspend endpoint.
+export type Role = 'viewer' | 'decision_maker' | 'dev' | 'admin' | 'suspended';
+export type AssignableRole = Exclude<Role, 'suspended'>;
+export const ASSIGNABLE_ROLES: AssignableRole[] = ['viewer', 'decision_maker', 'dev', 'admin'];
+
 export type TicketStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done';
 export type Priority = 'p0' | 'p1' | 'p2' | 'p3';
 export type TicketType = 'bug' | 'feature';
@@ -11,6 +17,12 @@ export interface Env {
   FRONTEND_URL: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
+  // Comma-separated list of email domains allowed to hold an account.
+  LOGIN_EMAIL_DOMAINS: string;
+  // Workers rate limiting bindings guarding the login endpoint. Optional so the
+  // Worker still boots in environments where the bindings are not configured.
+  LOGIN_RATE_LIMIT_IP?: RateLimit;
+  LOGIN_RATE_LIMIT_EMAIL?: RateLimit;
 }
 
 export interface User {
@@ -30,6 +42,7 @@ export interface User {
   notify_ticket_done: number;
   notify_ticket_comment: number;
   notify_user_registered: number;
+  token_version: number;
   created_at: number;
   last_login: number | null;
 }
@@ -123,6 +136,9 @@ export interface JWTPayload {
   sub: string;
   email: string;
   role: Role;
+  // Session generation. Must match users.token_version or the token is rejected.
+  // Absent on tokens issued before session revocation existed; treated as 0.
+  tv?: number;
   exp: number;
   iat: number;
 }

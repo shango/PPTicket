@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../lib/store';
-import { api, userInitials } from '../lib/api';
+import { api, setToken, userInitials } from '../lib/api';
 import { registerPush, unregisterPush, isPushEnabled } from '../lib/push';
 
 const emailPrefKeys: readonly { key: string; label: string; description: string; adminOnly?: boolean }[] = [
@@ -109,8 +109,10 @@ export function ProfilePage() {
     }
     setPwLoading(true);
     try {
-      await api.changePassword(pwForm.current, pwForm.new);
-      setPwSuccess('Password changed successfully.');
+      const result = await api.changePassword(pwForm.current, pwForm.new);
+      // The old session was revoked server-side; keep this device signed in.
+      setToken(result.token);
+      setPwSuccess('Password changed. Other devices have been signed out.');
       setPwForm({ current: '', new: '', confirm: '' });
       setTimeout(() => setShowPasswordModal(false), 1500);
     } catch (e: any) {

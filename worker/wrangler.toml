@@ -12,8 +12,33 @@ migrations_dir = "../migrations"
 binding = "ATTACHMENTS"
 bucket_name = "pdo-kanban-attachments"
 
+# Brute-force protection on /auth/login and /auth/setup.
+# Counters are kept per Cloudflare location, so treat these as a speed bump on
+# top of slow password hashing rather than a hard global cap.
+# Per source IP: catches a single host hammering the endpoint.
+[[ratelimits]]
+name = "LOGIN_RATE_LIMIT_IP"
+namespace_id = "2001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
+
+# Per target email: stops a distributed attack concentrating on one account.
+[[ratelimits]]
+name = "LOGIN_RATE_LIMIT_EMAIL"
+namespace_id = "2002"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
+
 [vars]
 FRONTEND_URL = "https://pdo-kanban.pages.dev"
+# Comma-separated email domains permitted to hold an account. Enforced at login,
+# at admin user creation, and on self-service email changes. An empty value
+# disables the restriction entirely.
+LOGIN_EMAIL_DOMAINS = "pdoexperts.fb.com,varax.io"
 
 [triggers]
 crons = ["0 3 * * *"]  # Run daily at 3:00 AM UTC
@@ -21,3 +46,5 @@ crons = ["0 3 * * *"]  # Run daily at 3:00 AM UTC
 # Secrets (set via `wrangler secret put`):
 # JWT_SECRET
 # EMAIL_API_KEY
+# VAPID_PUBLIC_KEY
+# VAPID_PRIVATE_KEY
