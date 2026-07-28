@@ -140,7 +140,18 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     submitterId = body.submitter_id;
   }
 
-  // Determine initial status — dev/admin can choose backlog or todo
+  // EDC follows the same rule as on update: dev/admin only. Ignored rather than
+  // rejected for other roles, which is how this handler treats status and
+  // assignees too.
+  let edc: number | null = null;
+  if (body.edc != null && ['dev', 'admin'].includes(user.role)) {
+    if (!Number.isFinite(body.edc)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid EDC.' } }, 400);
+    }
+    edc = body.edc;
+  }
+
+  // Determine initial status - dev/admin can choose backlog or todo
   let initialStatus = 'backlog';
   if (body.status && ['dev', 'admin'].includes(user.role)) {
     const validStatuses = ['backlog', 'todo'];
@@ -169,7 +180,7 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
     `INSERT INTO tickets (id, ticket_number, title, description, status, priority, ticket_type, product_id, milestone_id, submitter_id, edc, product_version, sort_order, created_at, updated_at)
      SELECT ?, COALESCE(MAX(ticket_number), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE((SELECT MAX(sort_order) FROM tickets WHERE status = ?), 0) + 1, ?, ?
      FROM tickets`
-  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, body.milestone_id || null, submitterId, body.edc || null, body.product_version || null, initialStatus, now, now).run();
+  ).bind(id, body.title, body.description, initialStatus, priority, body.ticket_type || 'bug', body.product_id || null, body.milestone_id || null, submitterId, edc, body.product_version || null, initialStatus, now, now).run();
 
   // Add assignees to junction table
   for (const aid of assigneeIds) {

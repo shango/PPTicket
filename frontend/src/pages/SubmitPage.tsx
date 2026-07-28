@@ -17,6 +17,7 @@ export function SubmitPage() {
     product_id: '',
     tags: '',
     milestone_id: '',
+    edc: '',
   });
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   // Columns are admin-configurable, so the landing column cannot be a pair of
@@ -24,6 +25,7 @@ export function SubmitPage() {
   const [columns, setColumns] = useState<Column[]>([]);
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [edcWarned, setEdcWarned] = useState(false);
   const [success, setSuccess] = useState<{ ticketNumber: number; ticketId: string } | null>(null);
   const [error, setError] = useState('');
   const [myTickets, setMyTickets] = useState<TicketWithMeta[]>([]);
@@ -62,6 +64,12 @@ export function SubmitPage() {
       setError('Please select a ticket type.');
       return;
     }
+    // EDC stays optional, so this holds the first submit rather than blocking
+    // it: warn once, and let a second press through.
+    if (canAssign && !form.edc && !edcWarned) {
+      setEdcWarned(true);
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -77,11 +85,18 @@ export function SubmitPage() {
         milestone_id: form.milestone_id || null,
         ticket_type: form.ticket_type as 'bug' | 'feature',
         product_id: form.product_id || null,
-        ...(canAssign ? { assignee_ids: assigneeIds, status } : {}),
+        // Same UTC-midnight convention as the ticket detail editor, so a date
+        // set here and one set there mean the same day.
+        ...(canAssign ? {
+          assignee_ids: assigneeIds,
+          status,
+          edc: form.edc ? Math.floor(new Date(form.edc).getTime() / 1000) : null,
+        } : {}),
       });
 
       setSuccess({ ticketNumber: ticket.ticket_number, ticketId: ticket.id });
-      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', milestone_id: '' });
+      setForm({ title: '', description: '', priority: 'p2', ticket_type: '', product_id: '', tags: '', milestone_id: '', edc: '' });
+      setEdcWarned(false);
       setAssigneeIds([]);
       setStatus((columns.find(c => c.is_initial) || columns[0])?.slug || '');
     } catch (e: any) {
@@ -195,7 +210,7 @@ export function SubmitPage() {
                 placeholder="Detailed description (min 20 characters). Markdown supported." />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${canAssign ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <div>
                 <label className={fieldLabel}>Priority <span className="text-danger">*</span></label>
                 <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className={fieldInput}>
@@ -213,6 +228,16 @@ export function SubmitPage() {
                   {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
               </div>
+              {/* Only devs and admins may set an EDC, matching the ticket detail
+                  editor and the rule the API enforces on update. */}
+              {canAssign && (
+                <div>
+                  <label className={fieldLabel} htmlFor="submit-edc">Est. Completion</label>
+                  <input id="submit-edc" type="date" value={form.edc}
+                    onChange={(e) => { setForm({ ...form, edc: e.target.value }); setEdcWarned(false); }}
+                    className={`${fieldInput} ${edcWarned && !form.edc ? 'border-danger' : ''}`} />
+                </div>
+              )}
             </div>
 
             <div>
@@ -221,10 +246,20 @@ export function SubmitPage() {
                 className={fieldInput} placeholder="Comma-separated, max 5 (e.g. reporting, urgent)" />
             </div>
 
-            <button type="submit" disabled={submitting}
-              className="px-6 py-2.5 bg-accent text-white rounded-lg text-[13px] font-semibold hover:bg-accent-hover disabled:opacity-50 transition-colors shadow-lg shadow-accent/10">
-              {submitting ? 'Submitting...' : 'Submit Ticket'}
-            </button>
+            <div className="space-y-2">
+              {edcWarned && !form.edc && (
+                <p className="text-danger text-[12px] flex items-center gap-1.5" role="alert">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  No estimated completion date. Submit again to create this ticket without one.
+                </p>
+              )}
+              <button type="submit" disabled={submitting}
+                className="px-6 py-2.5 bg-accent text-white rounded-lg text-[13px] font-semibold hover:bg-accent-hover disabled:opacity-50 transition-colors shadow-lg shadow-accent/10">
+                {submitting ? 'Submitting...' : 'Submit Ticket'}
+              </button>
+            </div>
           </form>
 
           {/* My Submissions */}
