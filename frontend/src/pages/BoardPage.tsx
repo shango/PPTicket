@@ -299,29 +299,30 @@ export function BoardPage() {
               </button>
             )}
 
-            {/* View toggle */}
-            <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5">
+            {/* View toggle. Two unlabelled icons read as a pair of buttons
+                rather than a view switcher, so the list view went unfound. */}
+            <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5" role="group" aria-label="View">
               <button
                 onClick={() => setParam('view', '')}
                 aria-pressed={viewMode === 'board'}
-                aria-label="Board view"
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors ${viewMode === 'board' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
                 title="Board view (b)"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="21" x2="8" y2="3"/><line x1="16" y1="21" x2="16" y2="3"/>
                 </svg>
+                Board
               </button>
               <button
                 onClick={() => setParam('view', 'list')}
                 aria-pressed={viewMode === 'list'}
-                aria-label="List view"
-                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[12px] font-medium transition-colors ${viewMode === 'list' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
                 title="List view (l)"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
                 </svg>
+                List
               </button>
             </div>
           </>
