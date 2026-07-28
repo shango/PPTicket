@@ -90,7 +90,7 @@ export function Layout() {
         </div>
 
         {/* Nav */}
-        <nav className={`flex-1 flex flex-col gap-0.5 py-2 ${sidebarOpen ? 'px-2' : 'px-1'}`}>
+        <nav aria-label="Main" className={`flex-1 flex flex-col gap-0.5 py-2 ${sidebarOpen ? 'px-2' : 'px-1'}`}>
           {navItems.filter(item => item.visible !== false).map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => linkClass(isActive)} title={sidebarOpen ? undefined : item.label}>
               <span className="shrink-0">{item.icon}</span>
@@ -118,6 +118,9 @@ export function Layout() {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
+              aria-expanded={showUserMenu}
+              aria-haspopup="menu"
+              aria-label={`Account menu for ${user.name}`}
               className={`w-full flex items-center gap-2.5 rounded-lg py-2 transition-colors hover:bg-bg-hover ${sidebarOpen ? 'px-3' : 'px-0 justify-center'}`}
             >
               <div className="w-6 h-6 rounded-full bg-accent/20 flex items-center justify-center text-[10px] font-semibold text-accent shrink-0">
@@ -191,6 +194,8 @@ export function Layout() {
             onClick={toggleSidebar}
             className={`w-full flex items-center rounded-lg py-1.5 text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors ${sidebarOpen ? 'px-3 gap-3' : 'px-0 justify-center'}`}
             title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            aria-expanded={sidebarOpen}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"
               className={`shrink-0 transition-transform duration-200 ${sidebarOpen ? '' : 'rotate-180'}`}>

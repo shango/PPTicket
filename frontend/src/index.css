@@ -108,7 +108,22 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 1px rgba(124, 127, 223, 0.25);
 }
 
+/* Everything else that can take focus. Keyboard-only, so it never shows on a
+   mouse click, but a tab through the board is otherwise invisible. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* Smooth transitions on interactive elements */
 button, a, select {
   transition: all 0.15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

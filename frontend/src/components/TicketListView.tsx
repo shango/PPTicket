@@ -145,9 +145,13 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
 
   return (
     <div className="overflow-auto h-full">
-      <table className="w-full border-collapse min-w-[900px]">
+      <table className="w-full border-collapse min-w-[980px]">
         <thead className="sticky top-0 z-10 bg-bg-surface border-b border-border">
           <tr>
+            {/* The list view had no ticket number at all, so a row could not be
+                quoted to anyone, and with the title cell bound to inline editing
+                there was no keyboard way to open a ticket. This is both. */}
+            <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted w-[80px]">#</th>
             <SortHeader label="Status" sortKeyName="status" className="w-[120px]" />
             <SortHeader label="Priority" sortKeyName="priority" className="w-[70px]" />
             <SortHeader label="Title" sortKeyName="title" />
@@ -172,6 +176,16 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
                 }`}
                 style={{ borderLeftWidth: 3, borderLeftColor: ticket.product_color || 'transparent' }}
               >
+                {/* Ticket number, and the row's keyboard-reachable way in */}
+                <td className="px-3 py-2">
+                  <button
+                    onClick={() => onTicketClick(ticket)}
+                    className="text-[12px] font-mono text-text-muted hover:text-accent transition-colors"
+                  >
+                    PDO-{ticket.ticket_number}
+                  </button>
+                </td>
+
                 {/* Status */}
                 <td className="px-3 py-2" onClick={() => onTicketClick(ticket)}>
                   <span
@@ -283,7 +297,7 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
           })}
           {sorted.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-center py-12 text-text-muted text-[13px]">No tickets found</td>
+              <td colSpan={8} className="text-center py-12 text-text-muted text-[13px]">No tickets found</td>
             </tr>
           )}
         </tbody>
@@ -306,9 +320,12 @@ function AssigneeCell({ ticket, devUsers, onToggle }: { ticket: TicketWithMeta; 
 
   return (
     <div className="relative" ref={ref}>
-      <div
+      <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="text-[12px] text-text-secondary cursor-pointer hover:bg-bg-elevated/60 rounded px-2 py-1 -mx-2 -my-1 min-h-[24px] flex items-center flex-wrap gap-1"
+        aria-expanded={open}
+        aria-label={`Assignees for PDO-${ticket.ticket_number}`}
+        className="w-full text-left text-[12px] text-text-secondary cursor-pointer hover:bg-bg-elevated/60 rounded px-2 py-1 -mx-2 -my-1 min-h-[24px] flex items-center flex-wrap gap-1"
       >
         {ticket.assignee_names.length > 0 ? (
           ticket.assignee_names.map((name, i) => (
@@ -317,7 +334,7 @@ function AssigneeCell({ ticket, devUsers, onToggle }: { ticket: TicketWithMeta; 
         ) : (
           <span className="text-text-muted">—</span>
         )}
-      </div>
+      </button>
       {open && (
         <div className="absolute top-full left-0 mt-1 w-48 bg-bg-surface border border-border rounded-lg shadow-xl shadow-black/30 py-1 z-30 max-h-48 overflow-y-auto">
           {devUsers.map((u) => (

@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, type TicketWithMeta, type Column } from '../lib/api';
 import { toast } from '../lib/toast';
 
 export function ArchivePage() {
+  const navigate = useNavigate();
   const [tickets, setTickets] = useState<TicketWithMeta[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -109,6 +111,7 @@ export function ArchivePage() {
                 <th className="px-3 py-2.5 w-[40px]">
                   <input
                     type="checkbox"
+                    aria-label="Select all archived tickets"
                     checked={selected.size === tickets.length && tickets.length > 0}
                     onChange={toggleAll}
                     className="accent-accent"
@@ -137,6 +140,7 @@ export function ArchivePage() {
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
+                      aria-label={`Select PDO-${ticket.ticket_number}`}
                       checked={selected.has(ticket.id)}
                       onChange={() => toggleSelect(ticket.id)}
                       onClick={(e) => e.stopPropagation()}
@@ -144,12 +148,17 @@ export function ArchivePage() {
                     />
                   </td>
                   <td className="px-3 py-2 text-[12px] text-text-muted font-mono">
-                    {ticket.ticket_number}
+                    PDO-{ticket.ticket_number}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="text-[13px] font-medium text-text-primary leading-snug line-clamp-1">
+                    {/* The row toggles selection, so without this an archived
+                        ticket could be restored but never read. */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
+                      className="text-[13px] font-medium text-text-primary leading-snug line-clamp-1 text-left hover:text-accent transition-colors"
+                    >
                       {ticket.title}
-                    </div>
+                    </button>
                     {ticket.description && (
                       <p className="text-[11px] text-text-muted font-normal line-clamp-1 mt-0.5">{ticket.description}</p>
                     )}

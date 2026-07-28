@@ -2,11 +2,13 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api, type TicketWithMeta } from '../lib/api';
 
+// Sourced from the CSS variables rather than repeating the hex values, which
+// were the dark-theme ones and so stayed dark-theme in the light theme.
 const priorityStyles: Record<string, { bg: string; text: string }> = {
-  p0: { bg: 'rgba(212, 86, 78, 0.12)', text: '#d4564e' },
-  p1: { bg: 'rgba(212, 148, 78, 0.12)', text: '#d4944e' },
-  p2: { bg: 'rgba(124, 127, 223, 0.12)', text: '#7c7fdf' },
-  p3: { bg: 'rgba(95, 98, 112, 0.15)', text: '#5f6270' },
+  p0: { bg: 'color-mix(in srgb, var(--color-p0) 12%, transparent)', text: 'var(--color-p0)' },
+  p1: { bg: 'color-mix(in srgb, var(--color-p1) 12%, transparent)', text: 'var(--color-p1)' },
+  p2: { bg: 'color-mix(in srgb, var(--color-p2) 12%, transparent)', text: 'var(--color-p2)' },
+  p3: { bg: 'color-mix(in srgb, var(--color-p3) 15%, transparent)', text: 'var(--color-p3)' },
 };
 
 interface Props {
@@ -30,7 +32,7 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
-    borderLeftColor: ticket.product_color || '#2a2c35',
+    borderLeftColor: ticket.product_color || 'var(--color-border)',
   };
 
   const isPastEdc = ticket.edc && ticket.edc * 1000 < Date.now();
@@ -45,6 +47,17 @@ export function TicketCard({ ticket, onClick, isDraggable, size = 'large', isTer
       {...attributes}
       {...listeners}
       onClick={onClick}
+      // The card was a plain div with an onClick: focusable via dnd-kit but not
+      // activatable, so a keyboard user could never open a ticket from the board.
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`PDO-${ticket.ticket_number}: ${ticket.title}`}
       className={`border border-l-[3px] rounded-lg ${isSmall ? 'px-1.5 py-1' : 'p-3'} cursor-pointer transition-all duration-150 ${isDragging ? 'shadow-xl shadow-black/40 scale-[1.02]' : ''} ${
         missingEdc
           ? 'bg-danger/[0.06] border-danger/25 hover:bg-danger/[0.10] hover:border-danger/40'

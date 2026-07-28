@@ -4,11 +4,12 @@ import { api, type Milestone, type Project, type TicketWithMeta, type Column } f
 import { useStore } from '../lib/store';
 import { toast } from '../lib/toast';
 
+// The CSS variables, not copies of the dark-theme hex values.
 const priorityColors: Record<string, string> = {
-  p0: '#d4564e',
-  p1: '#d4944e',
-  p2: '#7c7fdf',
-  p3: '#5f6270',
+  p0: 'var(--color-p0)',
+  p1: 'var(--color-p1)',
+  p2: 'var(--color-p2)',
+  p3: 'var(--color-p3)',
 };
 
 function formatDate(unix: number) {
