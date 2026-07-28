@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { api, type TicketWithMeta, type User, type Column } from '../lib/api';
+import { toast } from '../lib/toast';
 
 interface Props {
   tickets: TicketWithMeta[];
@@ -90,7 +91,10 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
           onUpdate();
         }
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      // An inline edit that silently reverts looks like the app ate the change.
+      toast.error(e instanceof Error ? e.message : 'Could not save that change.');
+    }
     setEditingCell(null);
   }
 
@@ -101,7 +105,9 @@ export function TicketListView({ tickets, columns, canEdit, onTicketClick, onUpd
     try {
       await api.updateTicket(ticketId, { assignee_ids: newIds });
       onUpdate();
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not change the assignees.');
+    }
   }
 
   function SortHeader({ label, sortKeyName, className }: { label: string; sortKeyName: SortKey; className?: string }) {

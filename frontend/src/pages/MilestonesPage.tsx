@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Milestone, type Project, type TicketWithMeta, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
+import { toast } from '../lib/toast';
 
 const priorityColors: Record<string, string> = {
   p0: '#d4564e',
@@ -143,10 +144,14 @@ export function MilestonesPage() {
   }
 
   async function toggleStatus(m: Milestone) {
+    const next = m.status === 'open' ? 'closed' : 'open';
     try {
-      await api.updateMilestone(m.id, { status: m.status === 'open' ? 'closed' : 'open' });
+      await api.updateMilestone(m.id, { status: next });
       fetchData();
-    } catch { /* ignore */ }
+      toast.success(`${m.name} ${next === 'closed' ? 'closed' : 'reopened'}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not change that milestone.');
+    }
   }
 
   async function handleDelete(m: Milestone) {
@@ -154,6 +159,7 @@ export function MilestonesPage() {
     try {
       await api.deleteMilestone(m.id);
       fetchData();
+      toast.success(`Milestone "${m.name}" deleted.`);
     } catch (e: any) { setError(e.message); }
   }
 

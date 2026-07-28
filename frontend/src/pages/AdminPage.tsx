@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type User, type Project, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
+import { toast } from '../lib/toast';
 
 const roleOptions = ['viewer', 'decision_maker', 'dev', 'admin'] as const;
 const roleLabels: Record<string, string> = {
@@ -75,36 +76,48 @@ export function AdminPage() {
       await api.updateUser(editingUser.id, editForm);
       setEditingUser(null);
       fetchUsers();
+      toast.success('User updated.');
     } catch (e: any) { setEditError(e.message); }
   }
 
   async function handleDeleteUser(userId: string) {
     if (!confirm('Permanently delete this user? This cannot be undone. Their ticket assignments will be cleared.')) return;
-    try { await api.deleteUser(userId); fetchUsers(); } catch (e: any) { alert(e.message); }
+    try { await api.deleteUser(userId); fetchUsers(); toast.success('User deleted.'); }
+    catch (e: any) { toast.error(e.message); }
   }
 
   async function handleRoleChange(userId: string, currentRole: string, newRole: string) {
     if (newRole === currentRole) return;
-    if (!confirm(`Change this user's role to ${roleLabels[newRole]}?`)) return;
-    try { await api.updateRole(userId, newRole); fetchUsers(); } catch (e: any) { alert(e.message); }
+    if (!confirm(`Change this user's role to ${roleLabels[newRole]}? Their existing sessions will be signed out.`)) return;
+    try { await api.updateRole(userId, newRole); fetchUsers(); toast.success(`Role changed to ${roleLabels[newRole]}.`); }
+    catch (e: any) { toast.error(e.message); }
   }
   async function handleSuspend(userId: string) {
-    if (!confirm('Suspend this user? They will lose access.')) return;
-    try { await api.suspendUser(userId); fetchUsers(); } catch (e: any) { alert(e.message); }
+    if (!confirm('Suspend this user? They will lose access immediately and be signed out everywhere.')) return;
+    try { await api.suspendUser(userId); fetchUsers(); toast.success('User suspended.'); }
+    catch (e: any) { toast.error(e.message); }
   }
   async function handleCreateUser(e: React.FormEvent) {
     e.preventDefault(); setCreateError('');
-    try { await api.createUser(newUser); setNewUser({ email: '', first_name: '', last_name: '', password: '', role: 'viewer' }); setShowCreate(false); fetchUsers(); }
-    catch (e: any) { setCreateError(e.message); }
+    try {
+      await api.createUser(newUser);
+      toast.success(`${newUser.first_name} ${newUser.last_name} created. They must change the temporary password on first sign in.`);
+      setNewUser({ email: '', first_name: '', last_name: '', password: '', role: 'viewer' });
+      setShowCreate(false);
+      fetchUsers();
+    } catch (e: any) { setCreateError(e.message); }
   }
   async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault(); setProjectError('');
-    try { await api.createProject({ ...newProject, default_owner_id: newProject.default_owner_id || undefined }); setNewProject({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' }); setShowCreateProject(false); fetchProjects(); }
+    try { await api.createProject({ ...newProject, default_owner_id: newProject.default_owner_id || undefined }); setNewProject({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' }); setShowCreateProject(false); fetchProjects(); toast.success('Project created.'); }
     catch (e: any) { setProjectError(e.message); }
   }
   async function handleDeleteProject(id: string) {
-    if (!confirm('Delete this product?')) return;
-    try { await api.deleteProject(id); fetchProjects(); } catch (e: any) { alert(e.message); }
+    // The API refuses with a 409 if any ticket still points at the project, so
+    // the toast carries the count back rather than this dialog guessing.
+    if (!confirm('Delete this project?')) return;
+    try { await api.deleteProject(id); fetchProjects(); toast.success('Project deleted.'); }
+    catch (e: any) { toast.error(e.message); }
   }
 
   function openEditProject(p: Project) {
@@ -120,6 +133,7 @@ export function AdminPage() {
       await api.updateProject(editingProject.id, { ...editProjectForm, default_owner_id: editProjectForm.default_owner_id || null });
       setEditingProject(null);
       fetchProjects();
+      toast.success('Project updated.');
     } catch (e: any) { setEditProjectError(e.message); }
   }
 
@@ -136,17 +150,19 @@ export function AdminPage() {
       await api.updateColumn(editingColumn.id, editColumnForm);
       setEditingColumn(null);
       fetchColumns();
+      toast.success('Column updated.');
     } catch (e: any) { setEditColumnError(e.message); }
   }
 
   async function handleCreateColumn(e: React.FormEvent) {
     e.preventDefault(); setColumnError('');
-    try { await api.createColumn(newColumn); setNewColumn({ name: '', color: '#5f6270' }); setShowCreateColumn(false); fetchColumns(); }
+    try { await api.createColumn(newColumn); setNewColumn({ name: '', color: '#5f6270' }); setShowCreateColumn(false); fetchColumns(); toast.success('Column created.'); }
     catch (e: any) { setColumnError(e.message); }
   }
   async function handleDeleteColumn(id: string) {
     if (!confirm('Delete this column? Tickets must be moved out first.')) return;
-    try { await api.deleteColumn(id); fetchColumns(); } catch (e: any) { alert(e.message); }
+    try { await api.deleteColumn(id); fetchColumns(); toast.success('Column deleted.'); }
+    catch (e: any) { toast.error(e.message); }
   }
   async function handleMoveColumn(index: number, direction: -1 | 1) {
     const newCols = [...columns];
@@ -155,10 +171,12 @@ export function AdminPage() {
     [newCols[index], newCols[target]] = [newCols[target], newCols[index]];
     const order = newCols.map((c, i) => ({ id: c.id, sort_order: i + 1 }));
     setColumns(newCols);
-    try { await api.reorderColumns(order); } catch { fetchColumns(); }
+    try { await api.reorderColumns(order); }
+    catch (e: any) { toast.error(e.message || 'Could not reorder columns.'); fetchColumns(); }
   }
   async function handleToggleColumnFlag(id: string, flag: 'is_initial' | 'is_terminal', value: boolean) {
-    try { await api.updateColumn(id, { [flag]: value }); fetchColumns(); } catch (e: any) { alert(e.message); }
+    try { await api.updateColumn(id, { [flag]: value }); fetchColumns(); }
+    catch (e: any) { toast.error(e.message); }
   }
 
   async function handleExportCSV() {
@@ -199,8 +217,9 @@ export function AdminPage() {
       a.download = `pdo-tickets-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success(`Exported ${rows.length} ticket${rows.length === 1 ? '' : 's'}.`);
     } catch (e: any) {
-      alert('Export failed: ' + e.message);
+      toast.error('Export failed: ' + e.message);
     }
   }
 
@@ -430,7 +449,7 @@ export function AdminPage() {
                     <select
                       value={p.default_owner_id || ''}
                       onChange={async (e) => {
-                        try { await api.updateProject(p.id, { default_owner_id: e.target.value || null }); fetchProjects(); } catch (err: any) { alert(err.message); }
+                        try { await api.updateProject(p.id, { default_owner_id: e.target.value || null }); fetchProjects(); toast.success(`Default owner updated for ${p.name}.`); } catch (err: any) { toast.error(err.message); }
                       }}
                       className="bg-bg-elevated border border-border rounded-md px-2 py-1 text-[12px]"
                     >
@@ -573,7 +592,8 @@ export function AdminPage() {
                     try {
                       await api.updateSettings({ archive_after_days: archiveDays });
                       setArchiveDaysSaved(archiveDays);
-                    } catch (e: any) { alert(e.message); }
+                      toast.success(`Done tickets will archive after ${archiveDays} days.`);
+                    } catch (e: any) { toast.error(e.message); }
                     setArchiveSaving(false);
                   }}
                   disabled={archiveSaving}

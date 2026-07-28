@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api, type TicketWithMeta, type Column } from '../lib/api';
+import { toast } from '../lib/toast';
 
 export function ArchivePage() {
   const [tickets, setTickets] = useState<TicketWithMeta[]>([]);
@@ -53,12 +54,16 @@ export function ArchivePage() {
 
   async function handleRestore() {
     if (selected.size === 0) return;
+    const count = selected.size;
     setRestoring(true);
     try {
       await api.unarchiveTickets(Array.from(selected));
       setSelected(new Set());
       await fetchArchived();
-    } catch { /* ignore */ }
+      toast.success(`Restored ${count} ticket${count === 1 ? '' : 's'} to To Do.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not restore those tickets.');
+    }
     setRestoring(false);
   }
 

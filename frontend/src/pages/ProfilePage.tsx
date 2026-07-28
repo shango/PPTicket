@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStore } from '../lib/store';
 import { api, setToken, userInitials } from '../lib/api';
 import { registerPush, unregisterPush, isPushEnabled } from '../lib/push';
+import { toast } from '../lib/toast';
 
 const emailPrefKeys: readonly { key: string; label: string; description: string; adminOnly?: boolean }[] = [
   { key: 'notify_ticket_created', label: 'New ticket created', description: 'When a new ticket is submitted to the board' },
@@ -65,7 +66,9 @@ export function ProfilePage() {
     try {
       await api.updateEmailPreferences({ [key]: !current });
       await fetchUser();
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save that preference.');
+    }
   }
 
   function handleToggleTheme() {
@@ -77,7 +80,9 @@ export function ProfilePage() {
     try {
       await api.updateTicketSize(newSize);
       await fetchUser();
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not save that preference.');
+    }
   }
 
   async function handleTogglePush() {
@@ -86,11 +91,18 @@ export function ProfilePage() {
       if (pushEnabled) {
         await unregisterPush();
         setPushEnabled(false);
+        toast.success('Push notifications turned off.');
       } else {
         const ok = await registerPush();
         setPushEnabled(ok);
+        // registerPush resolves false when the browser blocks the permission
+        // prompt, which otherwise just flipped the toggle back with no reason.
+        if (ok) toast.success('Push notifications turned on.');
+        else toast.error('Your browser blocked notifications. Allow them in site settings and try again.');
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not change push notifications.');
+    }
     setPushLoading(false);
   }
 
@@ -142,6 +154,7 @@ export function ProfilePage() {
       if (Object.keys(updates).length > 0) {
         await api.updateProfile(updates);
         await fetchUser();
+        toast.success('Profile updated.');
       }
       setEditingProfile(false);
     } catch (e: any) {

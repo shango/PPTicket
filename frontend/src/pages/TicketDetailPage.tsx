@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, uploadAttachmentFile, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
+import { toast } from '../lib/toast';
 
 const priorityOptions = [
   { value: 'p0', label: 'P0 — Critical' },
@@ -354,7 +355,9 @@ export function TicketDetailPage() {
     try {
       const updated = await api.updateSubtask(ticket.id, st.id, { completed: !st.completed });
       setSubtasks(subtasks.map(s => s.id === st.id ? updated : s));
-    } catch { /* ignore */ }
+    } catch (e) {
+      setSubtaskError(e instanceof Error ? e.message : 'Could not update that sub-task.');
+    }
   }
 
   async function handleSaveSubtask(subtaskId: string) {
@@ -379,7 +382,9 @@ export function TicketDetailPage() {
     try {
       await api.deleteSubtask(ticket.id, subtaskId);
       setSubtasks(subtasks.filter(s => s.id !== subtaskId));
-    } catch { /* ignore */ }
+    } catch (e) {
+      setSubtaskError(e instanceof Error ? e.message : 'Could not delete that sub-task.');
+    }
   }
 
   async function loadSubtaskAttachments(subtaskId: string) {
@@ -477,7 +482,14 @@ export function TicketDetailPage() {
             {canEdit && !editing && !ticket.archived_at && (
               <button onClick={async () => {
                 if (!confirm('Archive this ticket? It will be removed from the board.')) return;
-                try { await api.archiveTicket(ticket.id); fetchTickets(); navigate('/board'); } catch { /* ignore */ }
+                try {
+                  await api.archiveTicket(ticket.id);
+                  fetchTickets();
+                  navigate('/board');
+                  toast.success(`PDO-${ticket.ticket_number} archived. Restore it from Archive.`);
+                } catch (e) {
+                  setSaveError(e instanceof Error ? e.message : 'Could not archive this ticket.');
+                }
               }}
                 className="text-[12px] px-2.5 py-1 rounded-md bg-bg-elevated border border-border text-text-muted hover:text-danger hover:border-danger/30 font-medium transition-colors">
                 Archive
@@ -659,10 +671,17 @@ export function TicketDetailPage() {
                           {canComment && (
                             <button
                               onClick={async () => {
-                                await api.deleteAttachment(att.id);
-                                setTicketAttachments(prev => prev.filter(a => a.id !== att.id));
+                                if (!confirm(`Delete "${att.filename}"? This cannot be undone.`)) return;
+                                try {
+                                  await api.deleteAttachment(att.id);
+                                  setTicketAttachments(prev => prev.filter(a => a.id !== att.id));
+                                  toast.success('Attachment deleted.');
+                                } catch (e) {
+                                  toast.error(e instanceof Error ? e.message : 'Could not delete that attachment.');
+                                }
                               }}
-                              className="p-1 rounded text-text-muted hover:text-danger transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100" title="Delete">
+                              className="p-1 rounded text-text-muted hover:text-danger transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                              title={`Delete ${att.filename}`} aria-label={`Delete ${att.filename}`}>
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                               </svg>
@@ -790,10 +809,16 @@ export function TicketDetailPage() {
                                     <span className="truncate">{att.filename}</span>
                                     {canManageSubtasks && (
                                       <button onClick={async () => {
-                                        await api.deleteAttachment(att.id);
-                                        await loadSubtaskAttachments(st.id);
-                                        setSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, attachment_count: Math.max(0, s.attachment_count - 1) } : s));
+                                        if (!confirm(`Delete "${att.filename}"? This cannot be undone.`)) return;
+                                        try {
+                                          await api.deleteAttachment(att.id);
+                                          await loadSubtaskAttachments(st.id);
+                                          setSubtasks(prev => prev.map(s => s.id === st.id ? { ...s, attachment_count: Math.max(0, s.attachment_count - 1) } : s));
+                                        } catch (e) {
+                                          setSubtaskError(e instanceof Error ? e.message : 'Could not delete that attachment.');
+                                        }
                                       }}
+                                        aria-label={`Delete ${att.filename}`}
                                         className="text-text-muted hover:text-danger ml-auto flex-shrink-0">
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                                           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -921,7 +946,9 @@ export function TicketDetailPage() {
                             try {
                               await api.deleteComment(comment.id);
                               setComments(prev => prev.filter(c => c.id !== comment.id));
-                            } catch { /* ignore */ }
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : 'Could not delete that comment.');
+                            }
                           }}
                           className="ml-auto text-[10px] text-text-muted hover:text-danger transition-colors"
                         >

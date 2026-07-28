@@ -15,6 +15,7 @@ import { ProjectsPage } from './pages/ProjectsPage';
 import { TicketDetailPage } from './pages/TicketDetailPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { Layout } from './components/Layout';
+import { Toaster } from './components/Toaster';
 
 function ProtectedRoute({ children, allowedRoles, skipPasswordCheck, allowAnonymous }: { children: React.ReactNode; allowedRoles?: string[]; skipPasswordCheck?: boolean; allowAnonymous?: boolean }) {
   const user = useStore((s) => s.user);
@@ -159,6 +160,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<CatchAll />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }
