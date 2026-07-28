@@ -4,72 +4,66 @@
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* Warm slate dark palette */
-  --color-bg-base: #0c0d10;
-  --color-bg-surface: #151619;
-  --color-bg-elevated: #1e1f24;
-  --color-bg-hover: #262830;
-  --color-border: #2a2c35;
-  --color-border-subtle: #21232a;
+  /* Dark: a soft blue-slate rather than near-black. The old base was #0c0d10,
+     which is dark enough to make every surface above it read as a hard edge.
+     The steps below are even, so depth comes from the ramp and not contrast. */
+  --color-bg-base: #101116;
+  --color-bg-surface: #171920;
+  --color-bg-elevated: #1f2129;
+  --color-bg-hover: #272a34;
+  --color-border: #2e313c;
+  --color-border-subtle: #23262e;
 
-  /* Text */
-  --color-text-primary: #e8e9ed;
-  --color-text-secondary: #a0a3af;
-  --color-text-muted: #5f6270;
+  /* Text. Primary is off-white on purpose: pure white on a dark ground
+     shimmers at small sizes. */
+  --color-text-primary: #e2e4ea;
+  --color-text-secondary: #a5a8b4;
+  --color-text-muted: #6b6f7d;
 
-  /* Desaturated accent — muted indigo */
-  --color-accent: #7c7fdf;
-  --color-accent-hover: #8e90e8;
-  --color-accent-muted: rgba(124, 127, 223, 0.12);
+  /* Accent: soft periwinkle */
+  --color-accent: #8488ec;
+  --color-accent-hover: #9a9df2;
+  --color-accent-muted: rgba(132, 136, 236, 0.14);
 
-  /* Priority — desaturated */
-  --color-p0: #d4564e;
-  --color-p1: #d4944e;
-  --color-p2: #7c7fdf;
-  --color-p3: #5f6270;
+  /* Priority */
+  --color-p0: #e0706a;
+  --color-p1: #dfa15f;
+  --color-p2: #8488ec;
+  --color-p3: #6b6f7d;
 
   /* Semantic */
-  --color-success: #5bae7a;
-  --color-danger: #d4564e;
+  --color-success: #63b98a;
+  --color-danger: #e0706a;
 }
 
+/* Light: the same ramp inverted. The old base was #e8e8ec, a flat grey that
+   made the whole page look switched off; this one is lighter and slightly
+   cool, so white cards still separate from it without a heavy border. */
 [data-theme="light"] {
-  --color-bg-base: #e8e8ec;
-  --color-bg-surface: #f7f7f9;
+  --color-bg-base: #f0f1f5;
+  --color-bg-surface: #f9fafc;
   --color-bg-elevated: #ffffff;
-  --color-bg-hover: #ebebef;
-  --color-border: #d4d4d9;
-  --color-border-subtle: #e0e0e5;
+  --color-bg-hover: #eaecf1;
+  --color-border: #dcdee5;
+  --color-border-subtle: #e6e8ee;
 
-  --color-text-primary: #1a1a1e;
-  --color-text-secondary: #55565e;
-  --color-text-muted: #8e8f99;
+  --color-text-primary: #1f2129;
+  --color-text-secondary: #565a66;
+  --color-text-muted: #8b8e9b;
 
-  --color-accent: #5254a8;
-  --color-accent-hover: #4446a0;
-  --color-accent-muted: rgba(82, 84, 168, 0.10);
+  --color-accent: #5b5ec9;
+  --color-accent-hover: #4c4fb8;
+  --color-accent-muted: rgba(91, 94, 201, 0.10);
 
-  --color-p0: #c0392b;
-  --color-p1: #c47b2b;
-  --color-p2: #6366c7;
-  --color-p3: #8e8f99;
+  /* Held deeper than their dark-theme counterparts: the same soft coral that
+     reads well on #171920 drops under 4.5:1 as small text on white. */
+  --color-p0: #c4503f;
+  --color-p1: #b8792f;
+  --color-p2: #5b5ec9;
+  --color-p3: #8b8e9b;
 
-  --color-success: #3d9156;
-  --color-danger: #c0392b;
-}
-
-[data-theme="light"] * {
-  scrollbar-color: #d4d4d9 transparent;
-}
-
-[data-theme="light"] ::selection {
-  background: rgba(99, 102, 199, 0.25);
-}
-
-[data-theme="light"] input:focus,
-[data-theme="light"] select:focus,
-[data-theme="light"] textarea:focus {
-  box-shadow: 0 0 0 2px rgba(82, 84, 168, 0.35);
+  --color-success: #3d9560;
+  --color-danger: #c4503f;
 }
 
 body {
@@ -83,13 +77,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Mixed from the tokens rather than restated per theme, which is how the light
+   theme ended up with its own copies of all three of these. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #2a2c35 transparent;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 ::selection {
-  background: rgba(124, 127, 223, 0.3);
+  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
 }
 
 input, select, textarea {
@@ -105,7 +101,7 @@ input::placeholder, textarea::placeholder {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--color-accent) !important;
-  box-shadow: 0 0 0 1px rgba(124, 127, 223, 0.25);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
 /* Everything else that can take focus. Keyboard-only, so it never shows on a

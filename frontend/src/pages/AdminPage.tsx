@@ -26,17 +26,17 @@ export function AdminPage() {
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', role: '' });
   const [editError, setEditError] = useState('');
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [newProject, setNewProject] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
+  const [newProject, setNewProject] = useState({ name: '', abbreviation: '', color: '#8488ec', default_owner_id: '' });
   const [projectError, setProjectError] = useState('');
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [editProjectForm, setEditProjectForm] = useState({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' });
+  const [editProjectForm, setEditProjectForm] = useState({ name: '', abbreviation: '', color: '#8488ec', default_owner_id: '' });
   const [editProjectError, setEditProjectError] = useState('');
   const [columns, setColumns] = useState<Column[]>([]);
   const [showCreateColumn, setShowCreateColumn] = useState(false);
-  const [newColumn, setNewColumn] = useState({ name: '', color: '#5f6270' });
+  const [newColumn, setNewColumn] = useState({ name: '', color: '#6b6f7d' });
   const [columnError, setColumnError] = useState('');
   const [editingColumn, setEditingColumn] = useState<Column | null>(null);
-  const [editColumnForm, setEditColumnForm] = useState({ name: '', color: '#5f6270' });
+  const [editColumnForm, setEditColumnForm] = useState({ name: '', color: '#6b6f7d' });
   const [editColumnError, setEditColumnError] = useState('');
   const [archiveDays, setArchiveDays] = useState('7');
   const [archiveDaysSaved, setArchiveDaysSaved] = useState('7');
@@ -108,7 +108,7 @@ export function AdminPage() {
   }
   async function handleCreateProject(e: React.FormEvent) {
     e.preventDefault(); setProjectError('');
-    try { await api.createProject({ ...newProject, default_owner_id: newProject.default_owner_id || undefined }); setNewProject({ name: '', abbreviation: '', color: '#7c7fdf', default_owner_id: '' }); setShowCreateProject(false); fetchProjects(); toast.success('Project created.'); }
+    try { await api.createProject({ ...newProject, default_owner_id: newProject.default_owner_id || undefined }); setNewProject({ name: '', abbreviation: '', color: '#8488ec', default_owner_id: '' }); setShowCreateProject(false); fetchProjects(); toast.success('Project created.'); }
     catch (e: any) { setProjectError(e.message); }
   }
   async function handleDeleteProject(id: string) {
@@ -155,7 +155,7 @@ export function AdminPage() {
 
   async function handleCreateColumn(e: React.FormEvent) {
     e.preventDefault(); setColumnError('');
-    try { await api.createColumn(newColumn); setNewColumn({ name: '', color: '#5f6270' }); setShowCreateColumn(false); fetchColumns(); toast.success('Column created.'); }
+    try { await api.createColumn(newColumn); setNewColumn({ name: '', color: '#6b6f7d' }); setShowCreateColumn(false); fetchColumns(); toast.success('Column created.'); }
     catch (e: any) { setColumnError(e.message); }
   }
   async function handleDeleteColumn(id: string) {
