@@ -2,13 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useStore } from '../lib/store';
 import { userInitials } from '../lib/api';
-
-interface NavItem {
-  to: string;
-  label: string;
-  icon: React.ReactNode;
-  visible?: boolean;
-}
+import { navItems } from '../lib/nav';
+import { CommandPalette } from './CommandPalette';
+import { modKeyLabel } from '../lib/platform';
 
 export function Layout() {
   const user = useStore((s) => s.user);
@@ -18,8 +14,22 @@ export function Layout() {
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Mod+K from anywhere in the app. Deliberately not guarded on the focused
+  // element: it is a browser-level chord, so it never collides with typing.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -31,43 +41,8 @@ export function Layout() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const canArchive = !!user && ['dev', 'admin'].includes(user.role);
-  const canSubmit = !!user && ['decision_maker', 'dev', 'admin'].includes(user.role);
-  const isAdmin = user?.role === 'admin';
   const initials = user ? userInitials(user) : '';
-
-  const navItems: NavItem[] = [
-    {
-      to: '/board', label: 'Board',
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
-    },
-    {
-      // Previously only reachable from the board toolbar, which is awkward for
-      // decision makers whose whole job here is submitting.
-      to: '/submit', label: 'New Ticket', visible: canSubmit,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
-    },
-    {
-      to: '/milestones', label: 'Roadmap', visible: !!user,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>,
-    },
-    {
-      to: '/projects', label: 'Projects', visible: !!user,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>,
-    },
-    {
-      to: '/attachments', label: 'Files', visible: !!user,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>,
-    },
-    {
-      to: '/archive', label: 'Archive', visible: canArchive,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>,
-    },
-    {
-      to: '/admin', label: 'Admin', visible: isAdmin,
-      icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-    },
-  ];
+  const items = navItems(user);
 
   const linkClass = (isActive: boolean) =>
     `flex items-center gap-3 rounded-lg transition-colors ${
@@ -98,7 +73,27 @@ export function Layout() {
 
         {/* Nav */}
         <nav aria-label="Main" className={`flex-1 flex flex-col gap-0.5 py-2 ${sidebarOpen ? 'px-2' : 'px-1'}`}>
-          {navItems.filter(item => item.visible !== false).map((item) => (
+          {/* The palette's only discoverable entry point. A shortcut nobody is
+              told about is a shortcut nobody uses. */}
+          <button
+            onClick={() => setPaletteOpen(true)}
+            title={sidebarOpen ? undefined : `Search (${modKeyLabel})`}
+            className={`flex items-center gap-3 rounded-lg mb-1 text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors ${
+              sidebarOpen ? 'px-3 py-2' : 'px-0 py-2 justify-center'
+            }`}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="shrink-0">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            {sidebarOpen && (
+              <>
+                <span className="text-[13px] font-medium flex-1 text-left">Search</span>
+                <kbd className="text-[10px] border border-border-subtle rounded px-1 py-px">{modKeyLabel}</kbd>
+              </>
+            )}
+          </button>
+
+          {items.map((item) => (
             <NavLink key={item.to} to={item.to} className={({ isActive }) => linkClass(isActive)} title={sidebarOpen ? undefined : item.label}>
               <span className="shrink-0">{item.icon}</span>
               {sidebarOpen && <span className="text-[13px] font-medium truncate">{item.label}</span>}
@@ -221,6 +216,9 @@ export function Layout() {
       <main className="flex-1 min-w-0 overflow-y-auto">
         <Outlet />
       </main>
+
+      {/* Mounted only while open so it resets its query every time. */}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }

@@ -9,6 +9,8 @@ interface AppState {
   loading: boolean;
   initialized: boolean;
   error: string | null;
+  /** ms epoch of the last successful ticket fetch, for the board's live indicator. */
+  lastSync: number | null;
 
   fetchUser: () => Promise<void>;
   fetchTickets: (params?: Record<string, string>) => Promise<void>;
@@ -31,6 +33,7 @@ export const useStore = create<AppState>((set, get) => ({
   loading: false,
   initialized: false,
   error: null,
+  lastSync: null,
   sidebarOpen: localStorage.getItem('sidebar_open') !== 'false',
   theme: getTheme(),
 
@@ -63,7 +66,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const tickets = await api.getTickets(params);
-      set({ tickets, loading: false });
+      set({ tickets, loading: false, lastSync: Date.now() });
     } catch (e: any) {
       set({ error: e.message, loading: false });
     }

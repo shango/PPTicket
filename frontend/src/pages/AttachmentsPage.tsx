@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type AttachmentWithTicket, type Project } from '../lib/api';
+import { PageHeader } from '../components/PageHeader';
 
 function formatSize(bytes: number | null) {
   if (!bytes) return '—';
@@ -30,12 +31,17 @@ export function AttachmentsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 px-5 py-2.5 border-b border-border-subtle">
-        <h1 className="text-[15px] font-semibold text-text-primary">Attachments</h1>
-        <div className="h-5 w-px bg-border-subtle" />
+      <PageHeader
+        title="Files"
+        actions={
+          <span className="text-[12px] text-text-muted">
+            {attachments.length} file{attachments.length !== 1 ? 's' : ''}
+          </span>
+        }
+      >
         <select
           value={selectedProject}
+          aria-label="Filter by project"
           onChange={(e) => setSelectedProject(e.target.value)}
           className="bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-secondary"
         >
@@ -44,10 +50,7 @@ export function AttachmentsPage() {
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <span className="text-[12px] text-text-muted ml-auto">
-          {attachments.length} file{attachments.length !== 1 ? 's' : ''}
-        </span>
-      </div>
+      </PageHeader>
 
       {/* List */}
       <div className="flex-1 overflow-auto px-4 py-4">

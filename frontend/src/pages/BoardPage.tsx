@@ -18,12 +18,14 @@ import { api, type TicketWithMeta, type Project, type Column, type Milestone } f
 import { KanbanColumn } from '../components/KanbanColumn';
 import { TicketCard } from '../components/TicketCard';
 import { TicketListView } from '../components/TicketListView';
+import { PageHeader } from '../components/PageHeader';
 
 export function BoardPage() {
   const user = useStore((s) => s.user);
   const tickets = useStore((s) => s.tickets);
   const loading = useStore((s) => s.loading);
   const loadError = useStore((s) => s.error);
+  const lastSync = useStore((s) => s.lastSync);
   const fetchTickets = useStore((s) => s.fetchTickets);
   const optimisticMoveTicket = useStore((s) => s.optimisticMoveTicket);
 
@@ -122,10 +124,11 @@ export function BoardPage() {
       if (e.key === 'n' && canCreate) { e.preventDefault(); navigate('/submit'); return; }
       if (e.key === 'b') { setParam('view', ''); return; }
       if (e.key === 'l') { setParam('view', 'list'); return; }
+      if (e.key === 'r') { e.preventDefault(); fetchTickets(); return; }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canCreate, navigate, setParam]);
+  }, [canCreate, navigate, setParam, fetchTickets]);
 
   const filteredTickets = useMemo(() => {
     let result = tickets;
@@ -271,8 +274,59 @@ export function BoardPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2.5 px-5 py-2.5 border-b border-border-subtle flex-wrap">
+      <PageHeader
+        title="Board"
+        actions={
+          <>
+            {/* Result count, so a filter that hides everything is legible */}
+            {hasFilters && !firstLoad && (
+              <span className="text-[12px] text-text-muted tabular-nums">
+                {filteredTickets.length} of {tickets.length}
+              </span>
+            )}
+
+            <LiveIndicator lastSync={lastSync} loading={loading} onRefresh={() => fetchTickets()} />
+
+            {/* New Ticket */}
+            {canCreate && (
+              <button
+                onClick={() => navigate('/submit')}
+                title="New ticket (n)"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-[12px] font-medium hover:bg-accent-hover transition-colors"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                New Ticket
+              </button>
+            )}
+
+            {/* View toggle */}
+            <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5">
+              <button
+                onClick={() => setParam('view', '')}
+                aria-pressed={viewMode === 'board'}
+                aria-label="Board view"
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                title="Board view (b)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="21" x2="8" y2="3"/><line x1="16" y1="21" x2="16" y2="3"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setParam('view', 'list')}
+                aria-pressed={viewMode === 'list'}
+                aria-label="List view"
+                className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
+                title="List view (l)"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </>
+        }
+      >
         {/* Search */}
         <div className="relative">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
@@ -373,54 +427,7 @@ export function BoardPage() {
             All Tickets
           </button>
         )}
-
-        <div className="ml-auto" />
-
-        {/* Result count, so a filter that hides everything is legible */}
-        {hasFilters && !firstLoad && (
-          <span className="text-[12px] text-text-muted tabular-nums">
-            {filteredTickets.length} of {tickets.length}
-          </span>
-        )}
-
-        {/* New Ticket */}
-        {canCreate && (
-          <button
-            onClick={() => navigate('/submit')}
-            title="New ticket (n)"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-[12px] font-medium hover:bg-accent-hover transition-colors"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New Ticket
-          </button>
-        )}
-
-        {/* View toggle */}
-        <div className="flex bg-bg-elevated rounded-lg border border-border-subtle p-0.5">
-          <button
-            onClick={() => setParam('view', '')}
-            aria-pressed={viewMode === 'board'}
-            aria-label="Board view"
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'board' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
-            title="Board view (b)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <rect x="2" y="3" width="20" height="18" rx="2"/><line x1="8" y1="21" x2="8" y2="3"/><line x1="16" y1="21" x2="16" y2="3"/>
-            </svg>
-          </button>
-          <button
-            onClick={() => setParam('view', 'list')}
-            aria-pressed={viewMode === 'list'}
-            aria-label="List view"
-            className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-bg-surface text-accent shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}
-            title="List view (l)"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-            </svg>
-          </button>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* A failed refresh used to be completely silent. */}
       {loadError && (
@@ -511,6 +518,32 @@ export function BoardPage() {
       )}
 
     </div>
+  );
+}
+
+/**
+ * The board silently refetches every 30s. Without this you cannot tell whether
+ * what you are looking at is current, stale, or the result of a failed poll -
+ * and there was no way to ask for fresh data short of reloading the page.
+ */
+function LiveIndicator({ lastSync, loading, onRefresh }: { lastSync: number | null; loading: boolean; onRefresh: () => void }) {
+  // Deliberately a clock time, not "2m ago": a relative label has to be
+  // recomputed on a timer to stay honest, and this one cannot go stale.
+  const stamp = lastSync
+    ? new Date(lastSync).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : null;
+
+  return (
+    <button
+      onClick={onRefresh}
+      disabled={loading}
+      title={stamp ? `Auto-refreshes every 30s. Last updated ${stamp}. Click to refresh now (r).` : 'Refresh (r)'}
+      aria-label="Refresh tickets"
+      className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] text-text-muted hover:text-text-secondary hover:bg-bg-hover transition-colors disabled:opacity-60"
+    >
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${loading ? 'bg-accent animate-pulse' : 'bg-success'}`} />
+      <span className="tabular-nums">{loading ? 'Syncing' : stamp || 'Live'}</span>
+    </button>
   );
 }
 

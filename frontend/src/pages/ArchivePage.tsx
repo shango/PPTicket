@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type TicketWithMeta, type Column } from '../lib/api';
 import { toast } from '../lib/toast';
+import { PageHeader } from '../components/PageHeader';
 
 export function ArchivePage() {
   const navigate = useNavigate();
@@ -70,31 +71,28 @@ export function ArchivePage() {
   }
 
   return (
-    <div className="h-full flex flex-col px-4 py-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-lg font-semibold text-text-primary">Archived Tickets</h1>
-          <p className="text-[12px] text-text-muted mt-0.5">
-            {tickets.length} ticket{tickets.length !== 1 ? 's' : ''} in archive
-          </p>
-        </div>
-        {selected.size > 0 && (
-          <button
-            onClick={handleRestore}
-            disabled={restoring}
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-md bg-accent text-white text-[13px] font-medium hover:bg-accent-hover transition-colors disabled:opacity-50"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
-            </svg>
-            {restoring ? 'Restoring...' : `Restore ${selected.size} to To Do`}
-          </button>
-        )}
-      </div>
+    <div className="h-full flex flex-col">
+      <PageHeader
+        title="Archive"
+        subtitle={`${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}`}
+        actions={
+          selected.size > 0 ? (
+            <button
+              onClick={handleRestore}
+              disabled={restoring}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent text-white text-[12px] font-medium hover:bg-accent-hover transition-colors disabled:opacity-50"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              {restoring ? 'Restoring...' : `Restore ${selected.size} to To Do`}
+            </button>
+          ) : null
+        }
+      />
 
       {/* Table */}
-      <div className="overflow-auto flex-1">
+      <div className="overflow-auto flex-1 px-4 py-4">
         {loading ? (
           <div className="flex items-center justify-center h-48 text-text-muted text-[13px]">Loading...</div>
         ) : tickets.length === 0 ? (

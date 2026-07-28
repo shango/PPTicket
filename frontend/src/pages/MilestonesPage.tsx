@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, type Milestone, type Project, type TicketWithMeta, type Column } from '../lib/api';
 import { useStore } from '../lib/store';
 import { toast } from '../lib/toast';
+import { PageHeader } from '../components/PageHeader';
 
 // The CSS variables, not copies of the dark-theme hex values.
 const priorityColors: Record<string, string> = {
@@ -170,33 +171,32 @@ export function MilestonesPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border-subtle shrink-0">
-        <div className="flex items-center gap-3">
-          <h1 className="text-[17px] font-semibold text-text-primary tracking-tight">Roadmap</h1>
-          <div className="h-4 w-px bg-border" />
-          <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}
-            className="bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-secondary">
-            <option value="">All projects</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <label className="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer select-none">
-            <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="accent-accent" />
-            Closed
-          </label>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] text-text-muted">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-success" /> Done
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-accent" /> In Progress
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-danger" /> Past EDC
-          </span>
-        </div>
-      </div>
+      <PageHeader
+        title="Roadmap"
+        actions={
+          <div className="flex items-center gap-2 text-[11px] text-text-muted">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-success" /> Done
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-accent" /> In Progress
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-danger" /> Past EDC
+            </span>
+          </div>
+        }
+      >
+        <select value={projectFilter} aria-label="Filter by project" onChange={(e) => setProjectFilter(e.target.value)}
+          className="bg-bg-elevated border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-text-secondary">
+          <option value="">All projects</option>
+          {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <label className="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer select-none">
+          <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} className="accent-accent" />
+          Closed
+        </label>
+      </PageHeader>
 
       {error && <p className="text-danger text-[13px] px-6 pt-3">{error}</p>}
 
