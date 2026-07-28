@@ -181,8 +181,16 @@ export function AdminPage() {
         new Date(t.created_at * 1000).toLocaleString(),
         new Date(t.updated_at * 1000).toLocaleString(),
       ]);
+      // Ticket titles and descriptions are user-supplied. A cell starting with
+      // =, +, - or @ is interpreted as a formula by Excel/Sheets, so prefix a
+      // single quote to keep the export from becoming a script delivery vector.
+      const escapeCsvCell = (cell: unknown) => {
+        const value = String(cell ?? '');
+        const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+        return `"${safe.replace(/"/g, '""')}"`;
+      };
       const csvContent = [headers, ...rows]
-        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .map(row => row.map(escapeCsvCell).join(','))
         .join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);

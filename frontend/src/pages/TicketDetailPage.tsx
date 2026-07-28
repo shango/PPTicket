@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api, getToken, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment, type Milestone } from '../lib/api';
+import { api, uploadAttachmentFile, type TicketWithMeta, type Comment, type User, type Project, type Column, type SubTask, type Attachment, type Milestone } from '../lib/api';
 import { useStore } from '../lib/store';
 
 const priorityOptions = [
@@ -314,15 +314,7 @@ export function TicketDetailPage() {
       const attachmentIds: string[] = [];
       for (const file of commentFiles) {
         const { key, upload_url } = await api.getUploadUrl(ticket.id, file.name, file.type);
-        const token = getToken();
-        const BASE = import.meta.env.VITE_API_BASE_URL || '';
-        const IS_CROSS_ORIGIN = !!BASE;
-        await fetch(`${BASE}${upload_url}`, {
-          method: 'PUT',
-          credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
-          headers: { 'Content-Type': file.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: file,
-        });
+        await uploadAttachmentFile(upload_url, file);
         const att = await api.registerAttachment(ticket.id, {
           filename: file.name, url: key, mime_type: file.type, size_bytes: file.size,
         });
@@ -404,15 +396,7 @@ export function TicketDetailPage() {
     setUploadingSubtaskId(subtaskId);
     try {
       const { key, upload_url } = await api.getSubtaskUploadUrl(ticket.id, subtaskId, file.name, file.type);
-      const token = getToken();
-      const BASE = import.meta.env.VITE_API_BASE_URL || '';
-      const IS_CROSS_ORIGIN = !!BASE;
-      await fetch(`${BASE}${upload_url}`, {
-        method: 'PUT',
-        credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
-        headers: { 'Content-Type': file.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: file,
-      });
+      await uploadAttachmentFile(upload_url, file);
       await api.registerSubtaskAttachment(ticket.id, subtaskId, {
         filename: file.name, url: key, mime_type: file.type, size_bytes: file.size,
       });
@@ -430,25 +414,20 @@ export function TicketDetailPage() {
     const valid = files.filter(f => f.size <= 10 * 1024 * 1024);
     if (valid.length === 0) return;
     setUploadingTicketFile(true);
+    setSaveError('');
     try {
       for (const file of valid) {
         const { key, upload_url } = await api.getUploadUrl(ticket.id, file.name, file.type);
-        const token = getToken();
-        const BASE = import.meta.env.VITE_API_BASE_URL || '';
-        const IS_CROSS_ORIGIN = !!BASE;
-        await fetch(`${BASE}${upload_url}`, {
-          method: 'PUT',
-          credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
-          headers: { 'Content-Type': file.type, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-          body: file,
-        });
+        await uploadAttachmentFile(upload_url, file);
         await api.registerAttachment(ticket.id, {
           filename: file.name, url: key, mime_type: file.type, size_bytes: file.size,
         });
       }
       const atts = await api.getAttachments(ticket.id);
       setTicketAttachments(atts);
-    } catch { /* ignore */ }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Upload failed.');
+    }
     setUploadingTicketFile(false);
   }
 

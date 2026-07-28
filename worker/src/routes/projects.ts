@@ -16,10 +16,13 @@ projectRoutes.get('/', async (c) => {
 projectRoutes.post('/', requireRole('admin'), async (c) => {
   const { name, abbreviation, color, default_owner_id } = await c.req.json<{ name: string; abbreviation: string; color?: string; default_owner_id?: string }>();
 
-  if (!name || !abbreviation) {
+  if (typeof name !== 'string' || !name.trim() || typeof abbreviation !== 'string' || !abbreviation.trim()) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name and abbreviation are required.' } }, 400);
   }
-  if (abbreviation.length > 5) {
+  if (name.trim().length > 100) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name must be 100 characters or fewer.' } }, 400);
+  }
+  if (abbreviation.trim().length > 5) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Abbreviation must be 5 characters or fewer.' } }, 400);
   }
 
@@ -38,7 +41,7 @@ projectRoutes.post('/', requireRole('admin'), async (c) => {
 
   await c.env.DB.prepare(
     'INSERT INTO products (id, name, abbreviation, color, default_owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(id, name, abbreviation.toUpperCase(), color || '#6366f1', default_owner_id || null, now).run();
+  ).bind(id, name.trim(), abbreviation.trim().toUpperCase(), color || '#6366f1', default_owner_id || null, now).run();
 
   const project = await c.env.DB.prepare(
     'SELECT p.*, u.name as default_owner_name FROM products p LEFT JOIN users u ON p.default_owner_id = u.id WHERE p.id = ?'
@@ -54,8 +57,18 @@ projectRoutes.patch('/:id', requireRole('admin'), async (c) => {
   const updates: string[] = [];
   const values: any[] = [];
 
-  if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name); }
-  if (body.abbreviation !== undefined) { updates.push('abbreviation = ?'); values.push(body.abbreviation.toUpperCase()); }
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name is required (max 100 chars).' } }, 400);
+    }
+    updates.push('name = ?'); values.push(body.name.trim());
+  }
+  if (body.abbreviation !== undefined) {
+    if (typeof body.abbreviation !== 'string' || !body.abbreviation.trim() || body.abbreviation.trim().length > 5) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Abbreviation is required (max 5 chars).' } }, 400);
+    }
+    updates.push('abbreviation = ?'); values.push(body.abbreviation.trim().toUpperCase());
+  }
   if (body.color !== undefined) {
     if (body.color && !/^#[0-9a-fA-F]{3,8}$/.test(body.color)) {
       return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid color format.' } }, 400);

@@ -8,6 +8,10 @@ function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }
 
+function isHexColor(color: unknown): color is string {
+  return typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color);
+}
+
 // GET /api/v1/columns
 columnRoutes.get('/', async (c) => {
   const result = await c.env.DB.prepare('SELECT * FROM columns ORDER BY sort_order ASC').all<Column>();
@@ -18,11 +22,17 @@ columnRoutes.get('/', async (c) => {
 columnRoutes.post('/', requireRole('admin'), async (c) => {
   const { name, color } = await c.req.json<{ name: string; color?: string }>();
 
-  if (!name || name.trim().length === 0) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Column name is required.' } }, 400);
+  if (typeof name !== 'string' || name.trim().length === 0 || name.trim().length > 50) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Column name is required (max 50 chars).' } }, 400);
+  }
+  if (color !== undefined && !isHexColor(color)) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid color format.' } }, 400);
   }
 
   const slug = toSlug(name);
+  if (!slug) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Column name must contain letters or numbers.' } }, 400);
+  }
   const existing = await c.env.DB.prepare('SELECT id, name FROM columns WHERE slug = ?').bind(slug).first<{ id: string; name: string }>();
   if (existing) {
     return c.json({ data: null, error: { code: 'CONFLICT', message: `Slug "${slug}" conflicts with existing column "${existing.name}". Choose a more distinct name.` } }, 409);
@@ -57,11 +67,24 @@ columnRoutes.patch('/:id', requireRole('admin'), async (c) => {
   const values: any[] = [];
 
   if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 50) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Column name is required (max 50 chars).' } }, 400);
+    }
     updates.push('name = ?');
     values.push(body.name.trim());
   }
-  if (body.color !== undefined) { updates.push('color = ?'); values.push(body.color); }
-  if (body.sort_order !== undefined) { updates.push('sort_order = ?'); values.push(body.sort_order); }
+  if (body.color !== undefined) {
+    if (!isHexColor(body.color)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid color format.' } }, 400);
+    }
+    updates.push('color = ?'); values.push(body.color);
+  }
+  if (body.sort_order !== undefined) {
+    if (typeof body.sort_order !== 'number' || !Number.isFinite(body.sort_order)) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Invalid sort order.' } }, 400);
+    }
+    updates.push('sort_order = ?'); values.push(body.sort_order);
+  }
 
   // Handle is_initial — only one column can be initial
   if (body.is_initial !== undefined) {

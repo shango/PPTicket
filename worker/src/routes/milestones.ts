@@ -50,7 +50,7 @@ milestoneRoutes.get('/:id', async (c) => {
   return c.json({ data: milestone, error: null });
 });
 
-// POST /api/v1/milestones (dev+ only)
+// POST /api/v1/milestones (decision_maker and above)
 milestoneRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { name, project_id, description, target_date, status } = await c.req.json<{
     name: string;
@@ -60,8 +60,8 @@ milestoneRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (
     status?: 'open' | 'closed';
   }>();
 
-  if (!name || !project_id) {
-    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name and project are required.' } }, 400);
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 200 || typeof project_id !== 'string' || !project_id) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name (max 200 chars) and project are required.' } }, 400);
   }
 
   const project = await c.env.DB.prepare('SELECT id FROM products WHERE id = ?').bind(project_id).first();
@@ -80,7 +80,7 @@ milestoneRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (
 
   await c.env.DB.prepare(
     'INSERT INTO milestones (id, project_id, name, description, target_date, status, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, project_id, name, description || null, target_date || null, status || 'open', sortOrder, now, now).run();
+  ).bind(id, project_id, name.trim(), description || null, target_date || null, status === 'closed' ? 'closed' : 'open', sortOrder, now, now).run();
 
   const milestone = await c.env.DB.prepare(
     `SELECT m.*, p.name as project_name, p.abbreviation as project_abbreviation, p.color as project_color,
@@ -90,7 +90,7 @@ milestoneRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (
   return c.json({ data: milestone, error: null }, 201);
 });
 
-// PATCH /api/v1/milestones/:id (dev+ only)
+// PATCH /api/v1/milestones/:id (decision_maker and above)
 milestoneRoutes.patch('/:id', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
   const body = await c.req.json<{
@@ -109,7 +109,12 @@ milestoneRoutes.patch('/:id', requireRole('decision_maker', 'dev', 'admin'), asy
   const updates: string[] = [];
   const values: any[] = [];
 
-  if (body.name !== undefined) { updates.push('name = ?'); values.push(body.name); }
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 200) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Name is required (max 200 chars).' } }, 400);
+    }
+    updates.push('name = ?'); values.push(body.name.trim());
+  }
   if (body.description !== undefined) { updates.push('description = ?'); values.push(body.description); }
   if (body.target_date !== undefined) { updates.push('target_date = ?'); values.push(body.target_date); }
   if (body.status !== undefined) {
@@ -140,7 +145,7 @@ milestoneRoutes.patch('/:id', requireRole('decision_maker', 'dev', 'admin'), asy
   return c.json({ data: milestone, error: null });
 });
 
-// DELETE /api/v1/milestones/:id (admin only)
+// DELETE /api/v1/milestones/:id (decision_maker and above)
 milestoneRoutes.delete('/:id', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
 

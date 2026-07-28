@@ -54,6 +54,33 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return json.data;
 }
 
+/**
+ * PUT a file to the worker's R2 upload proxy. Kept here rather than inline at
+ * the call sites so the cross-origin/credentials handling matches `request()`,
+ * and so a failed upload throws instead of silently continuing on to register an
+ * attachment whose bytes were never stored.
+ */
+export async function uploadAttachmentFile(uploadUrl: string, file: File): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${uploadUrl}`, {
+    method: 'PUT',
+    credentials: IS_CROSS_ORIGIN ? 'omit' : 'include',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: file,
+  });
+
+  if (!res.ok) {
+    const message = await res
+      .json()
+      .then((j) => (j as { error?: { message?: string } })?.error?.message)
+      .catch(() => null);
+    throw new Error(message || `Upload failed for "${file.name}" (${res.status}).`);
+  }
+}
+
 export const api = {
   // Auth
   login: (email: string, password: string) =>

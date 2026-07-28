@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { Env, SubTask } from '../types';
 import { requireRole } from '../middleware/auth';
+import { sanitizeFilename, normalizeMimeType } from './tickets';
 
 export const subtaskRoutes = new Hono<{ Bindings: Env }>();
 
@@ -134,7 +135,11 @@ subtaskRoutes.delete('/:id', requireRole('decision_maker', 'dev', 'admin'), asyn
 subtaskRoutes.post('/:id/attachments/upload-url', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const ticketId = c.req.param('ticketId');
   const subtaskId = c.req.param('id');
-  const { filename, content_type } = await c.req.json<{ filename: string; content_type: string }>();
+  const { filename } = await c.req.json<{ filename: string }>();
+
+  if (typeof filename !== 'string' || !filename.trim()) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Filename is required.' } }, 400);
+  }
 
   const subtask = await c.env.DB.prepare(
     'SELECT id FROM subtasks WHERE id = ? AND ticket_id = ?'
@@ -143,7 +148,7 @@ subtaskRoutes.post('/:id/attachments/upload-url', requireRole('decision_maker', 
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Subtask not found.' } }, 404);
   }
 
-  const safeName = filename.replace(/[/\\:\0]/g, '_').slice(0, 200);
+  const safeName = sanitizeFilename(filename);
   const key = `tickets/${ticketId}/subtasks/${subtaskId}/${crypto.randomUUID()}-${safeName}`;
 
   return c.json({
@@ -157,9 +162,13 @@ subtaskRoutes.post('/:id/attachments', requireRole('decision_maker', 'dev', 'adm
   const user = c.get('user');
   const ticketId = c.req.param('ticketId');
   const subtaskId = c.req.param('id');
-  const { filename, url, mime_type, size_bytes } = await c.req.json<{
+  const { filename, url, mime_type } = await c.req.json<{
     filename: string; url: string; mime_type?: string; size_bytes?: number;
   }>();
+
+  if (typeof filename !== 'string' || !filename.trim() || typeof url !== 'string') {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Filename and url are required.' } }, 400);
+  }
 
   const subtask = await c.env.DB.prepare(
     'SELECT id FROM subtasks WHERE id = ? AND ticket_id = ?'
@@ -183,7 +192,7 @@ subtaskRoutes.post('/:id/attachments', requireRole('decision_maker', 'dev', 'adm
   const now = Math.floor(Date.now() / 1000);
   await c.env.DB.prepare(
     'INSERT INTO attachments (id, ticket_id, subtask_id, uploader_id, filename, url, mime_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, ticketId, subtaskId, user.id, filename, url, mime_type || null, size_bytes || null, now).run();
+  ).bind(id, ticketId, subtaskId, user.id, sanitizeFilename(filename), url, normalizeMimeType(mime_type), head.size, now).run();
 
   const attachment = await c.env.DB.prepare(
     'SELECT a.*, u.name as uploader_name FROM attachments a JOIN users u ON a.uploader_id = u.id WHERE a.id = ?'

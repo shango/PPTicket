@@ -6,6 +6,42 @@ import { sendPushToUser, sendPushToUsers } from '../lib/push';
 
 export const ticketRoutes = new Hono<{ Bindings: Env }>();
 
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_ASSIGNEES = 10;
+
+/**
+ * Keep only IDs that correspond to real, non-suspended users. Without this an
+ * arbitrary string lands in ticket_assignees, producing rows that join to
+ * nothing and silently disappear from every assignee listing.
+ */
+async function filterValidAssignees(db: D1Database, ids: string[]): Promise<string[]> {
+  const unique = [...new Set(ids.filter((id) => typeof id === 'string'))].slice(0, MAX_ASSIGNEES);
+  if (unique.length === 0) return [];
+  const placeholders = unique.map(() => '?').join(',');
+  const rows = await db
+    .prepare(`SELECT id FROM users WHERE role != 'suspended' AND id IN (${placeholders})`)
+    .bind(...unique)
+    .all<{ id: string }>();
+  const valid = new Set(rows.results.map((r) => r.id));
+  return unique.filter((id) => valid.has(id));
+}
+
+/** Strip path separators and control characters out of a client-supplied filename. */
+export function sanitizeFilename(filename: string): string {
+  return filename.replace(/[/\\:\0]/g, '_').replace(/[\r\n]/g, '').trim().slice(0, 200) || 'file';
+}
+
+/**
+ * Normalise a client-supplied content type down to a bare `type/subtype`.
+ * The value is still untrusted after this - the download route decides what is
+ * safe to serve inline - but it keeps parameters and junk out of the database.
+ */
+export function normalizeMimeType(mimeType: unknown): string | null {
+  if (typeof mimeType !== 'string') return null;
+  const bare = mimeType.split(';')[0].trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(bare) ? bare : null;
+}
+
 // GET /api/v1/tickets
 ticketRoutes.get('/', async (c) => {
   const status = c.req.query('status');
@@ -118,7 +154,10 @@ ticketRoutes.post('/', requireRole('decision_maker', 'dev', 'admin'), async (c) 
   // Determine assignees — dev/admin can explicitly set, otherwise auto-assign from project
   let assigneeIds: string[] = [];
   if (body.assignee_ids && body.assignee_ids.length > 0 && ['dev', 'admin'].includes(user.role)) {
-    assigneeIds = body.assignee_ids;
+    assigneeIds = await filterValidAssignees(c.env.DB, body.assignee_ids);
+    if (assigneeIds.length !== [...new Set(body.assignee_ids)].slice(0, MAX_ASSIGNEES).length) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'One or more assignees are not valid users.' } }, 400);
+    }
   } else if (body.product_id) {
     const project = await c.env.DB.prepare('SELECT default_owner_id FROM products WHERE id = ?').bind(body.product_id).first<{ default_owner_id: string | null }>();
     if (project?.default_owner_id) assigneeIds = [project.default_owner_id];
@@ -310,6 +349,12 @@ ticketRoutes.patch('/:id', async (c) => {
       return c.json({ data: null, error: { code: 'FORBIDDEN', message: 'Only devs and admins can assign tickets.' } }, 403);
     }
 
+    const requested = Array.isArray(body.assignee_ids) ? body.assignee_ids : [];
+    const validAssignees = await filterValidAssignees(c.env.DB, requested);
+    if (validAssignees.length !== [...new Set(requested)].slice(0, MAX_ASSIGNEES).length) {
+      return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'One or more assignees are not valid users.' } }, 400);
+    }
+
     // Get current assignees for diff
     const currentAssignees = await c.env.DB.prepare(
       'SELECT user_id FROM ticket_assignees WHERE ticket_id = ?'
@@ -318,8 +363,8 @@ ticketRoutes.patch('/:id', async (c) => {
 
     // Delete and reinsert
     await c.env.DB.prepare('DELETE FROM ticket_assignees WHERE ticket_id = ?').bind(id).run();
-    if (body.assignee_ids.length > 0) {
-      const inserts = body.assignee_ids.slice(0, 10).map(userId =>
+    if (validAssignees.length > 0) {
+      const inserts = validAssignees.map(userId =>
         c.env.DB.prepare('INSERT INTO ticket_assignees (ticket_id, user_id, created_at) VALUES (?, ?, ?)')
           .bind(id, userId, now).run()
       );
@@ -327,7 +372,7 @@ ticketRoutes.patch('/:id', async (c) => {
     }
 
     // Notify newly added assignees only (respecting email preferences)
-    const newAssignees = body.assignee_ids.filter(uid => !currentIds.has(uid));
+    const newAssignees = validAssignees.filter(uid => !currentIds.has(uid));
     for (const assigneeUserId of newAssignees) {
       const assignee = await c.env.DB.prepare('SELECT email, notification_email, notify_ticket_assigned FROM users WHERE id = ?').bind(assigneeUserId).first<{ email: string; notification_email: string | null; notify_ticket_assigned: number }>();
       if (assignee?.notify_ticket_assigned) {
@@ -375,7 +420,7 @@ ticketRoutes.patch('/:id', async (c) => {
   return c.json({ data: { ...updated, tags: tags.results.map(t => t.tag), assignee_ids: assigneesResult.results.map(a => a.user_id), assignee_names: assigneesResult.results.map(a => a.name) }, error: null });
 });
 
-// PATCH /api/v1/tickets/:id/move (Dev+ only)
+// PATCH /api/v1/tickets/:id/move (decision_maker and above)
 ticketRoutes.patch('/:id/move', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id } = c.req.param();
   const { status, sort_order } = await c.req.json<{ status: string; sort_order: number }>();
@@ -526,10 +571,16 @@ ticketRoutes.get('/:id/comments', async (c) => {
 ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const user = c.get('user');
   const { id: ticketId } = c.req.param();
-  const { body, attachment_ids } = await c.req.json<{ body: string; attachment_ids?: string[] }>();
+  const raw = await c.req.json<{ body?: string; attachment_ids?: string[] }>();
 
-  const hasAttachments = attachment_ids && attachment_ids.length > 0;
-  if ((!body || body.trim().length === 0) && !hasAttachments) {
+  // A comment can legitimately be attachments-only, in which case `body` is
+  // absent. Normalise to a string once here so the mention parser and the email
+  // template below cannot be handed undefined.
+  const body = typeof raw.body === 'string' ? raw.body : '';
+  const attachment_ids = raw.attachment_ids;
+
+  const hasAttachments = Array.isArray(attachment_ids) && attachment_ids.length > 0;
+  if (body.trim().length === 0 && !hasAttachments) {
     return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Comment body or attachment is required.' } }, 400);
   }
 
@@ -542,7 +593,7 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
   const now = Math.floor(Date.now() / 1000);
   await c.env.DB.prepare(
     'INSERT INTO comments (id, ticket_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).bind(id, ticketId, user.id, body || '', now).run();
+  ).bind(id, ticketId, user.id, body, now).run();
 
   // Link attachments to this comment
   if (hasAttachments) {
@@ -647,14 +698,18 @@ ticketRoutes.post('/:id/comments', requireRole('decision_maker', 'dev', 'admin')
 // POST /api/v1/tickets/:id/attachments/upload-url
 ticketRoutes.post('/:id/attachments/upload-url', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const { id: ticketId } = c.req.param();
-  const { filename, content_type } = await c.req.json<{ filename: string; content_type: string }>();
+  const { filename } = await c.req.json<{ filename: string }>();
+
+  if (typeof filename !== 'string' || !filename.trim()) {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Filename is required.' } }, 400);
+  }
 
   const ticket = await c.env.DB.prepare('SELECT id FROM tickets WHERE id = ?').bind(ticketId).first();
   if (!ticket) {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
 
-  const safeName = filename.replace(/[/\\:\0]/g, '_').slice(0, 200);
+  const safeName = sanitizeFilename(filename);
   const key = `tickets/${ticketId}/${crypto.randomUUID()}-${safeName}`;
 
   // For R2, we return the key and the client uploads via a Worker proxy endpoint
@@ -680,16 +735,16 @@ ticketRoutes.put('/:id/attachments/upload', requireRole('decision_maker', 'dev',
 
   // Enforce upload size limit (10MB)
   const contentLength = parseInt(c.req.header('content-length') || '0', 10);
-  if (contentLength > 10 * 1024 * 1024) {
+  if (contentLength > MAX_UPLOAD_BYTES) {
     return c.json({ data: null, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Max file size is 10MB.' } }, 413);
   }
 
   const body = await c.req.arrayBuffer();
-  if (body.byteLength > 10 * 1024 * 1024) {
+  if (body.byteLength > MAX_UPLOAD_BYTES) {
     return c.json({ data: null, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Max file size is 10MB.' } }, 413);
   }
   await c.env.ATTACHMENTS.put(key, body, {
-    httpMetadata: { contentType: c.req.header('content-type') || 'application/octet-stream' },
+    httpMetadata: { contentType: normalizeMimeType(c.req.header('content-type')) || 'application/octet-stream' },
   });
 
   return c.json({ data: { key, url: key }, error: null });
@@ -699,9 +754,13 @@ ticketRoutes.put('/:id/attachments/upload', requireRole('decision_maker', 'dev',
 ticketRoutes.post('/:id/attachments', requireRole('decision_maker', 'dev', 'admin'), async (c) => {
   const user = c.get('user');
   const { id: ticketId } = c.req.param();
-  const { filename, url, mime_type, size_bytes } = await c.req.json<{
+  const { filename, url, mime_type } = await c.req.json<{
     filename: string; url: string; mime_type?: string; size_bytes?: number;
   }>();
+
+  if (typeof filename !== 'string' || !filename.trim() || typeof url !== 'string') {
+    return c.json({ data: null, error: { code: 'INVALID_INPUT', message: 'Filename and url are required.' } }, 400);
+  }
 
   // Validate URL is a legitimate R2 key belonging to this ticket
   const expectedPrefix = `tickets/${ticketId}/`;
@@ -717,9 +776,11 @@ ticketRoutes.post('/:id/attachments', requireRole('decision_maker', 'dev', 'admi
 
   const id = crypto.randomUUID();
   const now = Math.floor(Date.now() / 1000);
+  // Take the size from R2 rather than the client so the reported size always
+  // matches the bytes actually stored.
   await c.env.DB.prepare(
     'INSERT INTO attachments (id, ticket_id, uploader_id, filename, url, mime_type, size_bytes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-  ).bind(id, ticketId, user.id, filename, url, mime_type || null, size_bytes || null, now).run();
+  ).bind(id, ticketId, user.id, sanitizeFilename(filename), url, normalizeMimeType(mime_type), head.size, now).run();
 
   const attachment = await c.env.DB.prepare('SELECT * FROM attachments WHERE id = ?').bind(id).first();
   return c.json({ data: attachment, error: null }, 201);
@@ -742,6 +803,20 @@ ticketRoutes.delete('/:id', requireRole('admin'), async (c) => {
     return c.json({ data: null, error: { code: 'NOT_FOUND', message: 'Ticket not found.' } }, 404);
   }
 
+  // The attachments rows cascade with the ticket, but the R2 objects they point
+  // at do not - collect the keys before the rows disappear, or the blobs are
+  // orphaned in the bucket forever.
+  const attachments = await c.env.DB.prepare('SELECT url FROM attachments WHERE ticket_id = ?').bind(id).all<{ url: string }>();
+
   await c.env.DB.prepare('DELETE FROM tickets WHERE id = ?').bind(id).run();
+
+  if (attachments.results.length > 0) {
+    c.executionCtx.waitUntil(
+      c.env.ATTACHMENTS.delete(attachments.results.map((a) => a.url)).catch((e) => {
+        console.error('R2 cleanup after ticket delete failed:', e);
+      })
+    );
+  }
+
   return c.json({ data: { message: 'Ticket deleted' }, error: null });
 });
